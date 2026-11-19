@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tablero de la boda</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header>
+  <h1 id="titulo">Tablero</h1>
+  <div class="info"><span id="cuenta"></span></div>
+  <div class="sp"></div>
+  <span class="modo" id="modo"></span>
+  <button class="btn" id="nuevo" style="display:none">Nueva tarea</button>
+  <button class="lnk" id="salir" style="display:none">Salir de edición</button>
+</header>
+<p id="aviso" hidden></p>
+<div id="wrap"><div id="frame"><div id="board"></div></div></div>
+<div id="toast" role="status"></div>
+
+<dialog id="dlg">
+  <form id="frm">
+    <h2 id="dtitulo">Nueva tarea</h2>
+    <label>Título<input id="f_titulo" maxlength="120"></label>
+    <p class="err" id="err"></p>
+    <label>Responsable<input id="f_responsable" maxlength="80"></label>
+    <label>Fecha o cita<input id="f_fecha" maxlength="80" placeholder="12 mar, 3:00 pm"></label>
+    <label>Detalle (nota amarilla)<textarea id="f_detalle" rows="2" maxlength="400"></textarea></label>
+    <label>Imagen (link https, link de Drive o ruta como img/playa.jpg)<input id="f_imagen" maxlength="500"></label>
+    <label>Dibujo si no hay imagen<select id="f_escena"></select></label>
+    <label>Conecta con (números de tarjeta, separados por coma)<input id="f_conecta" maxlength="60" placeholder="3,4"></label>
+    <div class="row">
+      <button type="button" class="danger" id="b_del">Eliminar</button>
+      <span class="sp"></span>
+      <button type="button" class="sec" id="b_cancel">Cancelar</button>
+      <button type="submit" class="btn dark" id="b_save">Guardar</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="js/config.js"></script>
+<script src="js/escenas.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
