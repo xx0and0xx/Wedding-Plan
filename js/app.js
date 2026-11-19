@@ -2,7 +2,7 @@
    Los datos viven en el Google Sheets; aquí solo se dibujan y se envían los cambios. */
 
 var BW = 720, BH = 560, scale = 1;
-var S = { tareas: [], editor: false, titulo: '', fechaBoda: '', plano: { x: 20, y: 320 } };
+var S = { tareas: [], editor: false, titulo: '', fechaBoda: '', plano: { x: 20, y: 320 }, usuario: '', clientId: '' };
 var drag = null, confirmarBorrado = false, editando = null;
 var DEMO = !CFG.API_URL;
 
@@ -22,6 +22,10 @@ var CLAVE = (function () {
     return m ? m[1] : '';
   }
 })();
+
+/* Sesión de un administrador que entró con Google (se guarda en este navegador). */
+var SESION = '';
+try { SESION = localStorage.getItem('tablero_sesion') || ''; } catch (e) {}
 
 var GR = '<svg class="gr" aria-hidden="true"><rect width="100%" height="100%" filter="url(#gr)" opacity=".25"/></svg>';
 var LAPIZ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3"/></svg>';
@@ -49,13 +53,13 @@ function porId(id) {
 
 function api(accion, datos) {
   if (DEMO) return demo(accion, datos || {});
-  var leerPublico = accion === 'leer' && !CLAVE;
+  var leerPublico = accion === 'leer' && !CLAVE && !SESION;
   var pedido = leerPublico
     ? fetch(CFG.API_URL + '?accion=leer')
     : fetch(CFG.API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(Object.assign({ accion: accion, clave: CLAVE }, datos || {}))
+        body: JSON.stringify(Object.assign({ accion: accion, clave: CLAVE, sesion: SESION }, datos || {}))
       });
   return pedido
     .then(function (r) { return r.json(); })
@@ -107,13 +111,49 @@ function demo(accion, d) {
 function cargar() {
   return api('leer').then(function (d) {
     S.tareas = d.tareas; S.editor = d.editor; S.titulo = d.titulo; S.fechaBoda = d.fechaBoda; S.plano = d.plano || { x: 20, y: 320 };
+    S.usuario = d.usuario || ''; S.clientId = d.clientId || '';
+    if (SESION && !d.editor) {
+      SESION = '';
+      try { localStorage.removeItem('tablero_sesion'); } catch (e) {}
+      toast('Tu sesión venció. Inicia sesión de nuevo.');
+    }
     $('aviso').hidden = !DEMO;
     if (DEMO) $('aviso').textContent = 'Modo demostración: los cambios no se guardan. Para conectarlo con tu Sheets, pega la URL de Apps Script en js/config.js.';
     render();
+    iniciarGoogle();
   }).catch(function (e) {
     $('aviso').hidden = false;
     $('aviso').textContent = 'No pude leer el tablero: ' + e.message;
   });
+}
+
+/* ---------- Inicio de sesión con Google ---------- */
+
+var gsiCargado = false;
+function iniciarGoogle() {
+  var caja = $('gsi');
+  if (DEMO || S.editor || !S.clientId) { caja.style.display = 'none'; return; }
+  caja.style.display = '';
+  if (gsiCargado) return;
+  gsiCargado = true;
+  var s = document.createElement('script');
+  s.src = 'https://accounts.google.com/gsi/client';
+  s.async = true;
+  s.onload = function () {
+    google.accounts.id.initialize({ client_id: S.clientId, callback: alEntrarGoogle });
+    google.accounts.id.renderButton(caja, { theme: 'filled_black', size: 'medium', text: 'signin_with', locale: 'es' });
+  };
+  s.onerror = function () { gsiCargado = false; toast('No pude cargar el inicio de sesión de Google.'); };
+  document.head.appendChild(s);
+}
+
+function alEntrarGoogle(resp) {
+  api('entrar', { credential: resp.credential }).then(function (r) {
+    SESION = r.sesion;
+    try { localStorage.setItem('tablero_sesion', SESION); } catch (e) {}
+    toast('Hola, ' + r.nombre);
+    return cargar();
+  }).catch(function (e) { toast(e.message); });
 }
 
 /* ---------- Tarjetas ---------- */
@@ -285,7 +325,7 @@ function render() {
     if (dias > 0) txt = 'Faltan ' + dias + ' días para la boda';
   }
   $('cuenta').textContent = txt;
-  $('modo').textContent = S.editor ? 'Modo edición' : 'Solo lectura';
+  $('modo').textContent = S.editor ? 'Modo edición' + (S.usuario ? ' · ' + S.usuario : '') : 'Solo lectura';
   $('nuevo').style.display = S.editor ? '' : 'none';
   $('salir').style.display = (S.editor && !DEMO) ? '' : 'none';
 }
@@ -321,7 +361,8 @@ $('nuevo').onclick = function () { abrirDialogo(null); };
 $('b_cancel').onclick = function () { $('dlg').close(); };
 $('f_titulo').oninput = function () { $('err').textContent = ''; };
 $('salir').onclick = function () {
-  try { localStorage.removeItem('tablero_clave'); } catch (e) {}
+  try { localStorage.removeItem('tablero_clave'); localStorage.removeItem('tablero_sesion'); } catch (e) {}
+  if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect();
   location.reload();
 };
 $('b_del').onclick = function () {

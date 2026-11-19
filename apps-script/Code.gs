@@ -3,6 +3,10 @@
  * y responde en JSON a la página que está en GitHub Pages.
  * Toda la información queda en este Sheets (pestañas "Tareas" y "Config").
  *
+ * Quién puede editar:
+ *  - Los correos de la pestaña "Admins" (nombre y correo), que entran con Google.
+ *  - O quien use la clave de la celda B2 de "Config" (respaldo).
+ *
  * Primer uso: ejecuta setup() una sola vez y luego publica como aplicación web.
  */
 
@@ -17,7 +21,7 @@ var ESCENAS = ['traje', 'playa', 'calendario', 'tiquetes', 'habitacion', 'generi
 function doGet(e) {
   try {
     var accion = e && e.parameter && e.parameter.accion;
-    if (accion === 'leer') return json_({ ok: true, datos: getTablero('') });
+    if (accion === 'leer') return json_({ ok: true, datos: getTablero({}) });
     return json_({ ok: true, datos: { servicio: 'tablero-boda' } });
   } catch (err) {
     return json_({ ok: false, error: String(err.message || err) });
@@ -35,13 +39,15 @@ function doPost(e) {
 }
 
 function manejar_(p) {
+  var acceso = { clave: p.clave, sesion: p.sesion };
   switch (p.accion) {
-    case 'leer': return getTablero(p.clave);
-    case 'estado': return cambiarEstado(p.clave, p.id, p.estado);
-    case 'mover': return moverTarea(p.clave, p.id, p.x, p.y);
-    case 'plano': return moverPlano(p.clave, p.x, p.y);
-    case 'guardar': return guardarTarea(p.clave, p.tarea);
-    case 'eliminar': return eliminarTarea(p.clave, p.id);
+    case 'leer': return getTablero(acceso);
+    case 'entrar': return entrar_(p.credential);
+    case 'estado': return cambiarEstado(acceso, p.id, p.estado);
+    case 'mover': return moverTarea(acceso, p.id, p.x, p.y);
+    case 'plano': return moverPlano(acceso, p.x, p.y);
+    case 'guardar': return guardarTarea(acceso, p.tarea);
+    case 'eliminar': return eliminarTarea(acceso, p.id);
     default: throw new Error('Acción desconocida.');
   }
 }
@@ -52,38 +58,41 @@ function json_(obj) {
 
 /* ---------- Operaciones ---------- */
 
-function getTablero(clave) {
+function getTablero(acceso) {
+  var quien = quien_(acceso);
   return {
     tareas: leerTareas_(),
-    editor: esEditor_(clave),
+    editor: !!quien,
+    usuario: quien ? quien.nombre : '',
+    clientId: String(leerConfig_('google_client_id') || '').trim(),
     titulo: leerConfig_('titulo') || 'Tablero de la boda',
     fechaBoda: fechaConfig_('fecha_boda'),
     plano: { x: numero_(leerConfig_('plano_x'), 20, 0, 5000), y: numero_(leerConfig_('plano_y'), 320, 0, 5000) }
   };
 }
 
-function cambiarEstado(clave, id, estado) {
-  exigirEditor_(clave);
+function cambiarEstado(acceso, id, estado) {
+  exigirEditor_(acceso);
   var nuevo = estado === 'completado' ? 'completado' : 'pendiente';
   actualizarCampos_(id, { estado: nuevo });
   return nuevo;
 }
 
-function moverTarea(clave, id, x, y) {
-  exigirEditor_(clave);
+function moverTarea(acceso, id, x, y) {
+  exigirEditor_(acceso);
   actualizarCampos_(id, { x: numero_(x, 20, 0, 5000), y: numero_(y, 20, 0, 5000) });
   return true;
 }
 
-function moverPlano(clave, x, y) {
-  exigirEditor_(clave);
+function moverPlano(acceso, x, y) {
+  exigirEditor_(acceso);
   escribirConfig_('plano_x', numero_(x, 20, 0, 5000));
   escribirConfig_('plano_y', numero_(y, 320, 0, 5000));
   return true;
 }
 
-function guardarTarea(clave, t) {
-  exigirEditor_(clave);
+function guardarTarea(acceso, t) {
+  exigirEditor_(acceso);
   var titulo = limpiar_(t && t.titulo, 120);
   if (!titulo) throw new Error('Falta el título.');
 
@@ -136,8 +145,8 @@ function guardarTarea(clave, t) {
   }
 }
 
-function eliminarTarea(clave, id) {
-  exigirEditor_(clave);
+function eliminarTarea(acceso, id) {
+  exigirEditor_(acceso);
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
   try {
@@ -236,6 +245,16 @@ function leerConfig_(clave) {
   return '';
 }
 
+function existeConfig_(clave) {
+  var c = ss_().getSheetByName(CFG);
+  if (!c) return false;
+  var v = c.getDataRange().getValues();
+  for (var i = 0; i < v.length; i++) {
+    if (String(v[i][0]).trim() === clave) return true;
+  }
+  return false;
+}
+
 function escribirConfig_(clave, valor) {
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -261,13 +280,78 @@ function fechaConfig_(clave) {
   return isNaN(d.getTime()) ? '' : Utilities.formatDate(d, 'America/Bogota', 'yyyy-MM-dd');
 }
 
-function esEditor_(clave) {
+/** Devuelve { nombre, correo } si el acceso es válido (sesión de Google o clave), o null. */
+function quien_(acceso) {
+  acceso = acceso || {};
+  var s = sesionValida_(acceso.sesion);
+  if (s) return s;
   var real = String(leerConfig_('clave_edicion') || '');
-  return !!clave && real !== '' && String(clave) === real;
+  if (acceso.clave && real !== '' && String(acceso.clave) === real) {
+    return { nombre: 'Clave de edición', correo: '' };
+  }
+  return null;
 }
 
-function exigirEditor_(clave) {
-  if (!esEditor_(clave)) throw new Error('Este enlace es solo de lectura.');
+function exigirEditor_(acceso) {
+  if (!quien_(acceso)) throw new Error('Este enlace es solo de lectura.');
+}
+
+/* ---------- Administradores (pestaña "Admins") y sesiones ---------- */
+
+var SESION_DIAS = 30;
+
+function buscarAdmin_(correo) {
+  var h = ss_().getSheetByName('Admins');
+  if (!h) return null;
+  var buscado = String(correo || '').trim().toLowerCase();
+  if (!buscado) return null;
+  var v = h.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    var c = String(v[i][1] || '').trim().toLowerCase();
+    if (c && c === buscado) return { nombre: String(v[i][0] || '').trim() || c, correo: c };
+  }
+  return null;
+}
+
+/** Verifica el token de Google, comprueba que el correo esté en Admins y abre una sesión. */
+function entrar_(credential) {
+  var clientId = String(leerConfig_('google_client_id') || '').trim();
+  if (!clientId) throw new Error('Falta el ID de cliente de Google en la pestaña Config (fila google_client_id).');
+  if (!credential || String(credential).length > 4000) throw new Error('Credencial inválida.');
+  var r = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(credential), { muteHttpExceptions: true });
+  if (r.getResponseCode() !== 200) throw new Error('No pude verificar tu cuenta de Google. Intenta de nuevo.');
+  var t = JSON.parse(r.getContentText());
+  if (t.aud !== clientId) throw new Error('El ID de cliente de Google no coincide con el de la pestaña Config.');
+  if (t.iss !== 'accounts.google.com' && t.iss !== 'https://accounts.google.com') throw new Error('Credencial inválida.');
+  if (String(t.email_verified) !== 'true') throw new Error('Tu correo de Google no está verificado.');
+  if (Number(t.exp) * 1000 < Date.now()) throw new Error('La credencial venció. Intenta de nuevo.');
+  var admin = buscarAdmin_(t.email);
+  if (!admin) throw new Error('El correo ' + t.email + ' no está en la lista de administradores.');
+  return { sesion: crearSesion_(admin), nombre: admin.nombre, correo: admin.correo };
+}
+
+function crearSesion_(admin) {
+  var props = PropertiesService.getScriptProperties();
+  var todo = props.getProperties();
+  Object.keys(todo).forEach(function (k) {
+    if (k.indexOf('ses_') !== 0) return;
+    try { if (JSON.parse(todo[k]).e < Date.now()) props.deleteProperty(k); } catch (err) { props.deleteProperty(k); }
+  });
+  var token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
+  props.setProperty('ses_' + token, JSON.stringify({ c: admin.correo, e: Date.now() + SESION_DIAS * 86400000 }));
+  return token;
+}
+
+/** La sesión sigue valiendo solo si no venció y el correo todavía está en Admins. */
+function sesionValida_(token) {
+  token = String(token || '');
+  if (!/^[a-f0-9]{64}$/.test(token)) return null;
+  var raw = PropertiesService.getScriptProperties().getProperty('ses_' + token);
+  if (!raw) return null;
+  var s;
+  try { s = JSON.parse(raw); } catch (err) { return null; }
+  if (s.e < Date.now()) return null;
+  return buscarAdmin_(s.c);
 }
 
 /* ---------- Utilidades ---------- */
@@ -349,5 +433,18 @@ function setup() {
     c.setColumnWidths(2, 1, 260);
   }
 
-  ss.toast('Listo. Tu clave de edición está en la pestaña Config (celda B2).', 'Tablero', 10);
+  if (!ss.getSheetByName('Admins')) {
+    var a = ss.insertSheet('Admins');
+    a.getRange(1, 1, 3, 2).setValues([
+      ['nombre', 'correo'],
+      ['Novio', 'novio@example.com'],
+      ['Padrino', 'padrino@example.com']
+    ]);
+    a.getRange('A1:B1').setFontWeight('bold');
+    a.setColumnWidths(1, 1, 160);
+    a.setColumnWidths(2, 1, 280);
+  }
+  if (!existeConfig_('google_client_id')) escribirConfig_('google_client_id', '');
+
+  ss.toast('Listo. Cambia los correos de ejemplo en la pestaña Admins por los reales.', 'Tablero', 10);
 }

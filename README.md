@@ -42,9 +42,30 @@ apps-script/Code.gs   código que va dentro del Sheets
 ### 3. Enlaces
 
 - Para los caballeros de honor (solo ver): `https://TU-USUARIO.github.io/NOMBRE-DEL-REPO/`
-- Para el novio y el padrino (editar): el mismo enlace con `#clave=TU-CLAVE` al final.
+- Para el novio y el padrino (editar): el mismo enlace, pulsando "Iniciar sesión con Google" con un correo de la pestaña `Admins`. Alternativa con la clave: el mismo enlace con `#clave=TU-CLAVE` al final.
   Ejemplo: `https://TU-USUARIO.github.io/NOMBRE-DEL-REPO/#clave=ab12cd34ef`
   La primera vez que lo abren, el navegador recuerda la clave. No compartan este enlace con los demás.
+
+## Administradores con su correo de Google
+
+En vez de compartir una clave, cada administrador entra con su cuenta de Google. Quien no esté en la lista solo ve el tablero.
+
+**La lista:** pestaña `Admins` del Sheets, con dos columnas: `nombre` y `correo`. Agrega o quita filas cuando quieras; el cambio vale al instante, también para quien ya había entrado. Reemplaza los correos de ejemplo (`@example.com`) por los reales.
+
+**Una sola vez, crear el ID de cliente de Google (5 minutos):**
+
+1. Entra a https://console.cloud.google.com e inicia sesión. Arriba, crea un proyecto nuevo (por ejemplo "Tablero boda").
+2. Menú > APIs y servicios > **Pantalla de consentimiento de OAuth**. Tipo de usuario: **Externo**. Pon un nombre de aplicación y tu correo, y guarda.
+   - Si la pantalla queda en "Pruebas", agrega los correos de los admins en **Usuarios de prueba**. O pulsa "Publicar aplicación": al pedir solo correo y nombre no necesita verificación.
+3. Menú > APIs y servicios > **Credenciales** > Crear credenciales > **ID de cliente de OAuth**.
+   - Tipo de aplicación: **Aplicación web**.
+   - Orígenes autorizados de JavaScript: `https://TU-USUARIO.github.io` (sin barra al final y sin el nombre del repositorio).
+   - Crear. Copia el **ID de cliente** (termina en `.apps.googleusercontent.com`).
+4. En el Sheets, pestaña `Config`, pega ese ID en la fila `google_client_id` (columna B).
+
+**Actualizar el Apps Script cuando cambie `Code.gs`:** pega el código nuevo, ejecuta `setup` otra vez (pide un permiso nuevo para verificar la cuenta de Google y crea la pestaña `Admins`), y luego Implementar > Administrar implementaciones > Editar (lápiz) > Versión: Nueva versión > Implementar.
+
+La clave de la celda B2 de `Config` sigue funcionando como respaldo. Para dejar solo el acceso por correo, borra el valor de B2.
 
 ## Uso diario
 
