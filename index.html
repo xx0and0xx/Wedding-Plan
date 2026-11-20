@@ -23,11 +23,18 @@
 
 <div id="lock" role="dialog" aria-modal="true" aria-labelledby="lock_t" hidden>
   <div class="lk">
-    <h2 id="lock_t">Ingresa tu código</h2>
-    <div id="lock_dots" aria-hidden="true"></div>
-    <p id="lock_msg" role="status"></p>
-    <div id="lock_pad"></div>
-    <p class="lk-h">Administradores: escriban su código personal. Para solo mirar el tablero, escribe cualquier código de 6 números.</p>
+    <h2 id="lock_t">Caja fuerte del plan</h2>
+    <div class="safe">
+      <div class="leds">
+        <span><i id="led_r" class="on"></i>LISTO</span>
+        <span><i id="led_e"></i>ERROR</span>
+        <span><i id="led_p"></i>ABIERTO</span>
+      </div>
+      <div class="lcd"><div id="lock_dots" aria-hidden="true"></div></div>
+      <p id="lock_msg" role="status"></p>
+      <div id="lock_pad"></div>
+    </div>
+    <p class="lk-h">Escribe tu código de 6 números. Los administradores usan su código personal; con cualquier otro solo podrás mirar el tablero.</p>
   </div>
 </div>
 

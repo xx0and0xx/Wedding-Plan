@@ -149,12 +149,14 @@ function mostrarLock(msg) {
   codigo = '';
   pintarPuntos();
   $('lock_msg').textContent = msg || '';
+  $('led_e').classList.remove('on');
   $('lock').hidden = false;
 }
 
 function pulsar(n) {
   if (enviando || codigo.length >= LARGO_CODIGO) return;
   $('lock_msg').textContent = '';
+  $('led_e').classList.remove('on');
   codigo += n;
   pintarPuntos();
   if (codigo.length === LARGO_CODIGO) enviarCodigo();
@@ -181,13 +183,21 @@ function enviarCodigo() {
       if (!DEMO) { try { localStorage.setItem('tablero_rol', 'obs'); } catch (e) {} }
       if (r.limitado) toast('Muchos intentos seguidos. Si eres administrador, espera unos minutos.');
     }
-    $('lock').hidden = true;
-    return cargar();
+    $('led_e').classList.remove('on');
+    $('led_p').classList.add('on');
+    $('lock').firstElementChild.classList.add('abre');
+    return new Promise(function (ok) { setTimeout(ok, 900); }).then(function () {
+      $('lock').hidden = true;
+      $('lock').firstElementChild.classList.remove('abre');
+      $('led_p').classList.remove('on');
+      return cargar();
+    });
   }).catch(function (e) {
     enviando = false;
     codigo = '';
     pintarPuntos();
     $('lock_msg').textContent = e.message;
+    $('led_e').classList.add('on');
     var d = $('lock_dots');
     d.classList.remove('sacude');
     void d.offsetWidth;
@@ -206,12 +216,9 @@ function armarTeclado() {
     pad.appendChild(b);
   }
   [1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(function (n) { boton(String(n), '', function () { pulsar(String(n)); }); });
-  var vacio = el('button', 'vacio');
-  vacio.tabIndex = -1;
-  vacio.setAttribute('aria-hidden', 'true');
-  pad.appendChild(vacio);
+  boton('C', 'accion', function () { if (!enviando) { codigo = ''; pintarPuntos(); } }, 'Borrar todo');
   boton('0', '', function () { pulsar('0'); });
-  boton('Borrar', 'borrar', borrarDigito, 'Borrar el último número');
+  boton('<', 'accion', borrarDigito, 'Borrar el último número');
   document.addEventListener('keydown', function (ev) {
     if ($('lock').hidden) return;
     if (/^[0-9]$/.test(ev.key)) { ev.preventDefault(); pulsar(ev.key); }
