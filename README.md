@@ -95,3 +95,7 @@ Cada cambio que se guarda (commit) en GitHub se publica solo en un par de minuto
 ## Probar sin conectar nada
 
 Con `API_URL` vacío, la página abre en modo demostración con datos de ejemplo (no se guardan). Para verla en el computador: `python3 -m http.server` dentro de esta carpeta y abrir `http://localhost:8000`.
+
+## Si no ves los cambios
+
+El navegador guarda copias de los archivos. Tras un cambio, haz una recarga forzada (`Ctrl + Shift + R`). Para que se actualice solo, sube el número `?v=` de los archivos en `index.html` cuando cambies `style.css` o `app.js`. `config.js` no lo necesita.
