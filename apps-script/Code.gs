@@ -45,6 +45,7 @@ function manejar_(p) {
     case 'leer': return getTablero(acceso);
     case 'entrar': return entrar_(p.codigo, p.correo);
     case 'estado': return cambiarEstado(acceso, p.id, p.estado);
+    case 'notas': return guardarNotas(acceso, p.id, p.detalle);
     case 'mover': return moverTarea(acceso, p.id, p.x, p.y);
     case 'plano': return moverPlano(acceso, p.x, p.y);
     case 'guardar': return guardarTarea(acceso, p.tarea);
@@ -92,6 +93,13 @@ function moverPlano(acceso, x, y) {
   return true;
 }
 
+/** Guarda solo las notas de una tarea (marcar una nota como hecha o moverla). */
+function guardarNotas(acceso, id, detalle) {
+  exigirEditor_(acceso);
+  actualizarCampos_(id, { detalle: limpiar_(detalle, 2500) });
+  return true;
+}
+
 function guardarTarea(acceso, t) {
   exigirEditor_(acceso);
   var titulo = limpiar_(t && t.titulo, 120);
@@ -99,9 +107,8 @@ function guardarTarea(acceso, t) {
 
   var datos = {
     titulo: titulo,
-    responsable: limpiar_(t.responsable, 80),
     fecha: limpiar_(t.fecha, 80),
-    detalle: limpiar_(t.detalle, 900),
+    detalle: limpiar_(t.detalle, 2500),
     imagen: limpiar_(t.imagen, 500),
     escena: ESCENAS.indexOf(t.escena) >= 0 ? t.escena : 'generico',
     conecta_con: limpiar_(t.conecta_con, 60),

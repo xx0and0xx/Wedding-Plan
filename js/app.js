@@ -3,7 +3,7 @@
 
 var BW = 720, BH = 560, scale = 1;
 var S = { tareas: [], editor: false, titulo: '', fechaBoda: '', plano: { x: 20, y: 320 }, usuario: '' };
-var drag = null, confirmarBorrado = false, editando = null;
+var drag = null, dragNota = null, confirmarBorrado = false, editando = null;
 var DEMO = !CFG.API_URL;
 
 /* ---------- Clave de edición ----------
@@ -99,6 +99,8 @@ function demo(accion, d) {
       demoUsuario = demoAdmin ? 'Admin demo' : 'Visita demo';
       r = { rol: demoAdmin ? 'admin' : 'observador', sesion: 'demo', nombre: demoUsuario };
     }
+  } else if (accion === 'notas') {
+    t = demoPorId(d.id); if (t) t.detalle = d.detalle; r = true;
   } else if (accion === 'estado') {
     t = demoPorId(d.id); if (t) t.estado = d.estado; r = d.estado;
   } else if (accion === 'mover') {
@@ -111,7 +113,7 @@ function demo(accion, d) {
       t = { id: demoTareas.reduce(function (m, k) { return Math.max(m, k.id); }, 0) + 1, estado: 'pendiente', x: d.tarea.x, y: d.tarea.y, rotacion: 1 };
       demoTareas.push(t);
     }
-    ['titulo', 'responsable', 'fecha', 'detalle', 'escena', 'conecta_con', 'ajuste'].forEach(function (k) { t[k] = d.tarea[k]; });
+    ['titulo', 'fecha', 'detalle', 'escena', 'conecta_con', 'ajuste'].forEach(function (k) { t[k] = d.tarea[k]; });
     t.imagenOriginal = d.tarea.imagen;
     t.imagen = /^(https:\/\/|img\/)/.test(d.tarea.imagen) ? d.tarea.imagen : '';
     r = JSON.parse(JSON.stringify(t));
@@ -274,20 +276,119 @@ function textoFecha(s) {
   return t;
 }
 
-/** El detalle guarda una nota por línea: "AAAA-MM-DD HH:MM|texto" (la fecha es opcional). */
+var RE_MARCA = /^\[(ok|-?\d+,-?\d+)\]/;
+
+/**
+ * El detalle guarda una nota por línea: "[ok][x,y]AAAA-MM-DD HH:MM|texto".
+ * [ok] = nota hecha, [x,y] = posición libre dentro de la tarjeta, la fecha es opcional.
+ */
 function leerNotas(detalle) {
   var salida = [];
   String(detalle || '').split('\n').forEach(function (linea) {
+    var ok = false, pos = null, m;
     linea = linea.trim();
+    while ((m = RE_MARCA.exec(linea))) {
+      if (m[1] === 'ok') ok = true;
+      else { var p = m[1].split(','); pos = { x: +p[0], y: +p[1] }; }
+      linea = linea.slice(m[0].length).trim();
+    }
     if (!linea) return;
     var i = linea.indexOf('|');
     if (i > 0 && RE_FECHA.test(linea.slice(0, i).trim())) {
-      salida.push({ fecha: linea.slice(0, i).trim(), texto: linea.slice(i + 1).trim() });
+      salida.push({ fecha: linea.slice(0, i).trim(), texto: linea.slice(i + 1).trim(), ok: ok, pos: pos });
     } else {
-      salida.push({ fecha: '', texto: linea });
+      salida.push({ fecha: '', texto: linea, ok: ok, pos: pos });
     }
   });
   return salida;
+}
+
+function lineaNota(n) {
+  return (n.ok ? '[ok]' : '') + (n.pos ? '[' + n.pos.x + ',' + n.pos.y + ']' : '') + (n.fecha ? n.fecha + '|' : '') + n.texto;
+}
+
+function guardarNotasTarea(t) {
+  t.detalle = t.notas.map(lineaNota).join('\n');
+  api('notas', { id: t.id, detalle: t.detalle }).catch(fallo);
+}
+
+function limitar(v, min, max) { return Math.min(max, Math.max(min, v)); }
+
+/** Cada nota es una notita con su círculo para marcarla como hecha; los admins pueden arrastrarla alrededor de su tarjeta. */
+function crearNota(t, c, n) {
+  var e = el('div', 'nota' + (n.ok ? ' ok' : ''));
+  var ck = el(S.editor ? 'button' : 'span', 'ck');
+  ck.setAttribute('aria-label', n.ok ? 'Nota hecha' : 'Nota pendiente');
+  if (S.editor) {
+    ck.type = 'button';
+    ck.setAttribute('aria-pressed', n.ok ? 'true' : 'false');
+    ck.addEventListener('pointerdown', function (ev) { ev.stopPropagation(); });
+    ck.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      n.ok = !n.ok;
+      e.classList.toggle('ok', n.ok);
+      ck.setAttribute('aria-pressed', n.ok ? 'true' : 'false');
+      ck.setAttribute('aria-label', n.ok ? 'Nota hecha' : 'Nota pendiente');
+      guardarNotasTarea(t);
+    });
+  }
+  e.appendChild(ck);
+  if (n.fecha) e.appendChild(el('span', 'nf', textoFecha(n.fecha)));
+  e.appendChild(el('span', 'tx', n.texto));
+  if (n.pos) {
+    e.classList.add('libre');
+    e.style.left = n.pos.x + 'px';
+    e.style.top = n.pos.y + 'px';
+  }
+  if (S.editor) arrastrarNota(e, n, t, c);
+  return e;
+}
+
+function arrastrarNota(e, n, t, c) {
+  var d = null;
+  e.addEventListener('pointerdown', function (ev) {
+    if (ev.button !== undefined && ev.button !== 0) return;
+    ev.stopPropagation();
+    d = { x0: ev.clientX, y0: ev.clientY, moved: false };
+    e.setPointerCapture(ev.pointerId);
+  });
+  e.addEventListener('pointermove', function (ev) {
+    if (!d) return;
+    ev.stopPropagation();
+    var dx = (ev.clientX - d.x0) / scale, dy = (ev.clientY - d.y0) / scale;
+    if (!d.moved) {
+      if (Math.abs(dx) + Math.abs(dy) < 5) return;
+      d.moved = true;
+      dragNota = true;
+      d.ox = e.offsetLeft;
+      d.oy = e.offsetTop;
+      e.classList.add('libre', 'arr');
+      c.classList.add('conlibres');
+      c.appendChild(e);
+      e.style.left = d.ox + 'px';
+      e.style.top = d.oy + 'px';
+    }
+    // Siempre queda pegada a su tarjeta: puede salir un poco por los lados, pero no alejarse.
+    d.x = limitar(d.ox + dx, -90, c.offsetWidth - 40);
+    d.y = limitar(d.oy + dy, -20, c.offsetHeight - 26);
+    e.style.left = d.x + 'px';
+    e.style.top = d.y + 'px';
+  });
+  function soltar(ev) {
+    if (!d) return;
+    ev.stopPropagation();
+    var movida = d.moved;
+    var x = d.x, y = d.y;
+    d = null;
+    dragNota = null;
+    e.classList.remove('arr');
+    if (movida) {
+      n.pos = { x: Math.round(x), y: Math.round(y) };
+      guardarNotasTarea(t);
+    }
+  }
+  e.addEventListener('pointerup', soltar);
+  e.addEventListener('pointercancel', function () { d = null; dragNota = null; e.classList.remove('arr'); });
 }
 
 function crearCard(t) {
@@ -316,18 +417,16 @@ function crearCard(t) {
 
   c.appendChild(el('p', 't', t.titulo));
   if (t.fecha) c.appendChild(el('p', 'f', textoFecha(t.fecha)));
-  if (t.responsable) c.appendChild(el('p', 'w', t.responsable));
-  var notas = leerNotas(t.detalle);
-  if (notas.length) {
-    var nt = el('div', 'nt');
-    notas.forEach(function (n) {
-      var it = el('div', 'ni');
-      if (n.fecha) it.appendChild(el('span', 'nf', textoFecha(n.fecha)));
-      if (n.texto) it.appendChild(document.createTextNode(n.texto));
-      nt.appendChild(it);
-    });
-    c.appendChild(nt);
-  }
+  t.notas = leerNotas(t.detalle);
+  var nts = el('div', 'nts');
+  var sueltas = [];
+  t.notas.forEach(function (n) {
+    var e = crearNota(t, c, n);
+    if (n.pos) sueltas.push(e); else nts.appendChild(e);
+  });
+  c.appendChild(nts);
+  sueltas.forEach(function (e) { c.appendChild(e); });
+  if (sueltas.length) c.classList.add('conlibres');
   c.appendChild(el('div', 'stp', 'LISTO'));
 
   if (S.editor) {
@@ -488,6 +587,8 @@ function agregarNota(n) {
   if ($('f_notas').children.length >= 10) return;
   var f = RE_FECHA.exec(n ? n.fecha : '');
   var fila = el('div', 'nrow');
+  if (n && n.ok) fila.dataset.ok = '1';
+  if (n && n.pos) fila.dataset.pos = n.pos.x + ',' + n.pos.y;
   var r1 = el('div', 'nr1');
   var d = document.createElement('input');
   d.type = 'date'; d.className = 'n_f'; d.setAttribute('aria-label', 'Fecha de la nota');
@@ -514,7 +615,8 @@ function juntarNotas() {
     var f = fila.querySelector('.n_f').value, h = fila.querySelector('.n_h').value;
     var t = fila.querySelector('.n_t').value.replace(/[|\r\n]+/g, ' ').trim();
     if (!f && !t) return;
-    lineas.push((f ? f + (h ? ' ' + h : '') + '|' : '') + t);
+    var pp = fila.dataset.pos ? fila.dataset.pos.split(',') : null;
+    lineas.push(lineaNota({ ok: !!fila.dataset.ok, pos: pp ? { x: +pp[0], y: +pp[1] } : null, fecha: f ? f + (h ? ' ' + h : '') : '', texto: t }));
   });
   return lineas.join('\n');
 }
@@ -526,7 +628,6 @@ function abrirDialogo(t) {
   $('err').textContent = '';
   $('dtitulo').textContent = t ? 'Editar tarea #' + t.id : 'Nueva tarea';
   $('f_titulo').value = t ? t.titulo : '';
-  $('f_responsable').value = t ? t.responsable : '';
   var mf = RE_FECHA.exec(t ? t.fecha : '');
   $('f_fecha').value = mf ? mf[1] + '-' + mf[2] + '-' + mf[3] : '';
   $('f_hora').value = mf && mf[4] ? mf[4] + ':' + mf[5] : '';
@@ -546,6 +647,10 @@ function abrirDialogo(t) {
 
 $('nuevo').onclick = function () { abrirDialogo(null); };
 $('b_nota').onclick = function () { agregarNota(null); };
+$('b_reacomodar').onclick = function () {
+  Array.prototype.forEach.call($('f_notas').children, function (f) { delete f.dataset.pos; });
+  toast('Las notas volverán a su lugar al guardar.');
+};
 $('b_qfecha').onclick = function () { $('f_fecha').value = ''; $('f_hora').value = ''; fechaVieja = ''; $('f_fvieja').textContent = ''; };
 $('b_cancel').onclick = function () { $('dlg').close(); };
 $('f_titulo').oninput = function () { $('err').textContent = ''; };
@@ -578,7 +683,6 @@ $('frm').onsubmit = function (ev) {
   var obj = {
     id: editando ? editando.id : 0,
     titulo: titulo,
-    responsable: $('f_responsable').value,
     fecha: $('f_fecha').value ? $('f_fecha').value + ($('f_hora').value ? ' ' + $('f_hora').value : '') : fechaVieja,
     detalle: juntarNotas(),
     ajuste: $('f_ajuste').value,
@@ -611,5 +715,5 @@ armarTeclado();
 if (necesitaCodigo()) mostrarLock();
 cargar();
 setInterval(function () {
-  if (!drag && !$('dlg').open && !DEMO) cargar();
+  if (!drag && !dragNota && !$('dlg').open && !DEMO) cargar();
 }, 60000);

@@ -104,6 +104,9 @@ Con `API_URL` vacío, la página abre en modo demostración con datos de ejemplo
 
 - **Fecha o cita:** el formulario abre un calendario (y una hora opcional). Se guarda como `2026-12-05 15:00` y se muestra como "sáb, 5 dic, 3:00 p. m.". Si una tarea tenía una fecha escrita a mano, se conserva hasta que elijas una del calendario o pulses "Quitar".
 - **Notas:** cada tarea puede tener varias (hasta 10), cada una con su propia fecha y hora opcionales. En el Sheets quedan en la columna `detalle`, una por línea, con el formato `2026-12-05 15:00|texto` (la fecha es opcional). Si escribes una nota a mano en esa celda, aparece como nota sin fecha.
+- **Nota hecha:** cada nota tiene un círculo; al pulsarlo se marca con un check verde y el texto se tacha. Quedan guardadas en el Sheets (`[ok]` al inicio de la línea) y todos las ven así.
+- **Mover las notas:** los administradores pueden arrastrar cada nota alrededor de su tarjeta. Siempre quedan pegadas a ella (pueden sobresalir un poco por los lados, pero no alejarse) y se mueven con la tarjeta. La posición queda guardada como `[x,y]` al inicio de la línea. En el formulario, el botón "Reacomodar notas" las devuelve a su lugar. Los observadores solo ven.
+- **Responsable:** ya no se muestra ni se pide. La columna `responsable` del Sheets queda sin usar y puedes borrarla.
 - **Cómo se acomoda la imagen:** columna `ajuste` (la agrega `setup` sola). Opciones: `cubrir` (llena el cuadro y recorta los bordes), `arriba` o `abajo` (llena el cuadro, mostrando esa parte) y `completa` (se ve entera, sin recortar). Se elige en el formulario, en "Cómo se acomoda la imagen".
 - **Título del tablero:** celda `titulo` de la hoja `Config` (ahora "Wedding Plan").
 

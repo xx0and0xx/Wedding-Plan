@@ -6,7 +6,7 @@
 <title>Wedding Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=6">
+<link rel="stylesheet" href="css/style.css?v=7">
 </head>
 <body>
 <header>
@@ -71,7 +71,6 @@
     <h2 id="dtitulo">Nueva tarea</h2>
     <label>Título<input id="f_titulo" maxlength="120"></label>
     <p class="err" id="err"></p>
-    <label>Responsable<input id="f_responsable" maxlength="80"></label>
     <p class="lb">Fecha o cita</p>
     <div class="fh">
       <input type="date" id="f_fecha" aria-label="Fecha">
@@ -81,7 +80,7 @@
     <p class="hint" id="f_fvieja"></p>
     <p class="lb">Notas (cada una puede llevar su fecha)</p>
     <div id="f_notas"></div>
-    <button type="button" class="sec" id="b_nota">+ Agregar nota</button>
+    <div class="fh2"><button type="button" class="sec" id="b_nota">+ Agregar nota</button><button type="button" class="sec" id="b_reacomodar">Reacomodar notas</button></div>
     <label>Imagen (link https, link de Drive o ruta como img/playa.jpg)<input id="f_imagen" maxlength="500"></label>
     <label>Cómo se acomoda la imagen
       <select id="f_ajuste">
@@ -103,7 +102,7 @@
 </dialog>
 
 <script src="js/config.js"></script>
-<script src="js/escenas.js?v=6"></script>
-<script src="js/app.js?v=6"></script>
+<script src="js/escenas.js?v=7"></script>
+<script src="js/app.js?v=7"></script>
 </body>
 </html>

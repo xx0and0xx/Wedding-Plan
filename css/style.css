@@ -34,10 +34,24 @@ button{font:inherit;cursor:pointer}
 .f{margin:2px 0 0;font-size:12px;font-weight:500;color:#712B13}
 .c.done .f{color:#777}
 .w{margin:2px 0 0;font-size:11px;color:#5F5E5A}
-.nt{position:relative;margin:8px -3px 0;background:#FFE680;color:#412402;font-family:'Caveat',cursive;font-size:15px;line-height:1.1;padding:6px 8px;transform:rotate(-1deg);box-shadow:2px 3px 5px rgba(0,0,0,.35);word-wrap:break-word}
-.nt .ni+.ni{margin-top:5px;padding-top:4px;border-top:1px dashed rgba(65,36,2,.35)}
-.nt .nf{display:block;font-family:Inter,sans-serif;font-size:10px;font-weight:500;letter-spacing:.01em;color:#7a4a0b}
-.c.done .nt{background:#ddd;color:#555}
+.nts{margin-top:8px}
+.nts:empty{display:none}
+.nota{position:relative;display:block;background:#FFE680;color:#412402;font-family:'Caveat',cursive;font-size:15px;line-height:1.1;padding:6px 8px 6px 28px;box-shadow:2px 3px 5px rgba(0,0,0,.35);word-wrap:break-word;transform:rotate(-1deg);touch-action:none}
+.nts .nota{margin:0 -3px}
+.nts .nota+.nota{margin-top:6px;transform:rotate(1deg)}
+.c.conlibres{z-index:3}
+.nota.libre{position:absolute;width:128px;z-index:3;margin:0}
+.nota.arr{z-index:7;box-shadow:4px 8px 14px rgba(0,0,0,.45)}
+.c.edit .nota{cursor:grab}
+.c.edit .nota.arr{cursor:grabbing}
+.nota .nf{display:block;font-family:Inter,sans-serif;font-size:10px;font-weight:500;letter-spacing:.01em;color:#7a4a0b}
+.nota .ck{position:absolute;left:6px;top:8px;width:16px;height:16px;border-radius:50%;border:2px solid #7a4a0b;background:#fff8d6;padding:0;display:block}
+button.ck{cursor:pointer}
+button.ck:focus-visible{outline:3px solid #185FA5}
+.nota.ok .ck{background:#2f8f4e;border-color:#2f8f4e}
+.nota.ok .ck:after{content:'';position:absolute;left:3px;top:0;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.nota.ok .tx{text-decoration:line-through;text-decoration-color:rgba(65,36,2,.6);opacity:.7}
+.c.done .nota{background:#ddd;color:#555}
 .stp{position:absolute;left:34px;top:48px;display:none;border:3px solid #A32D2D;color:#A32D2D;font-weight:500;font-size:15px;padding:1px 8px;transform:rotate(-12deg);background:rgba(255,255,255,.7);letter-spacing:1px;z-index:3;pointer-events:none}
 .c.done .stp{display:block}
 .eb{position:absolute;top:2px;right:2px;z-index:5;width:28px;height:28px;border-radius:50%;border:0;background:#2c2c2a;color:#fff;display:flex;align-items:center;justify-content:center;padding:0}
@@ -112,3 +126,4 @@ dialog input,dialog textarea,dialog select{display:block;width:100%;margin-top:4
 .nrow .nr1 input[type=time]{flex:0 0 108px}
 .nrow .nr2{margin-top:6px}
 .nrow .x{flex:0 0 auto;width:32px;height:32px;border-radius:50%;border:1px solid #b9b3a3;background:transparent;color:#A32D2D;font-size:18px;line-height:1;padding:0}
+.fh2{display:flex;gap:8px;flex-wrap:wrap}
