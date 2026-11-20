@@ -88,3 +88,8 @@ dialog input,dialog textarea,dialog select{display:block;width:100%;margin-top:4
 #lock_pad button:focus-visible{outline-color:#FAC775}
 #lock_pad .accion{font-size:18px}
 .lk-h{font-size:12px;color:#d9c7a6;margin:18px 0 0;line-height:1.5}
+#lock_mail{background:#2a2f45;padding:10px 12px 16px;border-radius:0 0 6px 6px;display:flex;flex-direction:column;gap:10px;text-align:left}
+#lock_mail label{font-size:12px;color:#d7dae8}
+#lock_mail input{font-family:'Courier New',monospace;font-size:16px;padding:10px;border:2px inset #6d7a5a;border-radius:3px;background:#b9c9a0;color:#2b3320;width:100%;box-sizing:border-box}
+#lock_mail .ent{border:3px solid #f3f1ea;outline:3px solid #3b4060;background:radial-gradient(circle at 35% 30%,#e8d85a,#b9a21c 70%);color:#3a3410;font-family:'Courier New',monospace;font-weight:700;font-size:18px;padding:10px;border-radius:30px;box-shadow:0 3px 0 #7d6c0f}
+#lock_mail .atras{background:none;border:0;color:#d7dae8;font-size:12px;text-decoration:underline;padding:4px}

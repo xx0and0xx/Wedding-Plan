@@ -3,13 +3,11 @@
  * y responde en JSON a la página que está en GitHub Pages.
  * Toda la información queda en este Sheets (pestañas "Tareas" y "Config").
  *
- * Quién puede editar:
- *  - Quien escriba en el teclado numérico el código de 6 números de un administrador
- *    (pestaña "Admins": nombre, correo opcional y código).
- *  - O quien use la clave de la celda B2 de "Config" (respaldo).
- * Cualquier otro código de 6 números entra en modo observación (solo ver).
- *
- * Primer uso: ejecuta setup() una sola vez y luego publica como aplicación web.
+ * Cómo se entra:
+ *  - Todos escriben en el teclado numérico el código de acceso (celda "codigo_acceso" de "Config",
+ *    por ejemplo la fecha de la boda) y luego su correo.
+ *  - La pestaña "Personas" (nombre, correo, rol) dice quién es admin (edita) y quién observador (solo ve).
+ *  - Respaldo: quien use la clave de la celda "clave_edicion" de "Config" también edita.
  */
 
 var HOJA = 'Tareas';
@@ -44,7 +42,7 @@ function manejar_(p) {
   var acceso = { clave: p.clave, sesion: p.sesion };
   switch (p.accion) {
     case 'leer': return getTablero(acceso);
-    case 'entrar': return entrar_(p.codigo);
+    case 'entrar': return entrar_(p.codigo, p.correo);
     case 'estado': return cambiarEstado(acceso, p.id, p.estado);
     case 'mover': return moverTarea(acceso, p.id, p.x, p.y);
     case 'plano': return moverPlano(acceso, p.x, p.y);
@@ -64,8 +62,9 @@ function getTablero(acceso) {
   var quien = quien_(acceso);
   return {
     tareas: leerTareas_(),
-    editor: !!quien,
+    editor: !!quien && quien.rol === 'admin',
     usuario: quien ? quien.nombre : '',
+    rol: quien ? quien.rol : '',
     titulo: leerConfig_('titulo') || 'Tablero de la boda',
     fechaBoda: fechaConfig_('fecha_boda'),
     plano: { x: numero_(leerConfig_('plano_x'), 20, 0, 5000), y: numero_(leerConfig_('plano_y'), 320, 0, 5000) }
@@ -271,23 +270,24 @@ function fechaConfig_(clave) {
   return isNaN(d.getTime()) ? '' : Utilities.formatDate(d, 'America/Bogota', 'yyyy-MM-dd');
 }
 
-/** Devuelve { nombre, correo } si el acceso es válido (sesión por código o clave), o null. */
+/** Devuelve { nombre, correo, rol } si el acceso es válido (sesión o clave), o null. */
 function quien_(acceso) {
   acceso = acceso || {};
   var s = sesionValida_(acceso.sesion);
   if (s) return s;
   var real = String(leerConfig_('clave_edicion') || '');
   if (acceso.clave && real !== '' && String(acceso.clave) === real) {
-    return { nombre: 'Clave de edición', correo: '' };
+    return { nombre: 'Clave de edición', correo: '', rol: 'admin' };
   }
   return null;
 }
 
 function exigirEditor_(acceso) {
-  if (!quien_(acceso)) throw new Error('Este enlace es solo de lectura.');
+  var q = quien_(acceso);
+  if (!q || q.rol !== 'admin') throw new Error('Tu acceso es solo de lectura.');
 }
 
-/* ---------- Administradores (pestaña "Admins") y sesiones ---------- */
+/* ---------- Administradores (pestaña "Personas") y sesiones ---------- */
 
 var SESION_DIAS = 30;
 var MAX_INTENTOS_CODIGO = 30;   // intentos de código permitidos por ventana
@@ -325,22 +325,29 @@ function codigoDeHoja_(v) {
   return /^\d{6}$/.test(t) ? t : '';
 }
 
-function codigoAlAzar_() {
-  return String(Math.floor(Math.random() * 900000) + 100000);
+function codigoAcceso_() {
+  return codigoDeHoja_(leerConfig_('codigo_acceso'));
 }
 
-function leerAdmins_() {
-  var h = ss_().getSheetByName('Admins');
+function leerPersonas_() {
+  var h = ss_().getSheetByName('Personas');
   if (!h) return [];
   var v = h.getDataRange().getValues();
   var salida = [];
   for (var i = 1; i < v.length; i++) {
-    var codigo = codigoDeHoja_(v[i][2]);
-    if (!codigo) continue;
     var correo = String(v[i][1] || '').trim().toLowerCase();
-    salida.push({ nombre: String(v[i][0] || '').trim() || correo || 'Admin', correo: correo, codigo: codigo });
+    if (correo.indexOf('@') < 1) continue;
+    var rol = String(v[i][2] || '').trim().toLowerCase() === 'admin' ? 'admin' : 'observador';
+    salida.push({ nombre: String(v[i][0] || '').trim() || correo, correo: correo, rol: rol });
   }
   return salida;
+}
+
+function buscarPersona_(correo) {
+  correo = String(correo || '').trim().toLowerCase();
+  var gente = leerPersonas_();
+  for (var i = 0; i < gente.length; i++) if (gente[i].correo === correo) return gente[i];
+  return null;
 }
 
 /** Máximo de intentos por ventana de tiempo, compartido por todos (no sabemos quién es cada visitante). */
@@ -363,24 +370,24 @@ function permitirIntento_() {
 }
 
 /**
- * Teclado numérico: si el código es de un administrador, abre una sesión de edición;
- * cualquier otro código entra como observador. Si hay demasiados intentos seguidos,
- * no se comprueba el código y se responde observador (así no se puede adivinar).
+ * Paso 1 (sin correo): comprueba que el código de acceso sea el correcto.
+ * Paso 2 (con correo): si el correo está en la pestaña Personas, abre sesión con el rol de esa fila.
+ * El código de 6 números lo comparten todos; el rol solo lo decide la hoja.
  */
-function entrar_(codigo) {
+function entrar_(codigo, correo) {
   codigo = String(codigo === null || codigo === undefined ? '' : codigo).trim();
   if (!/^\d{6}$/.test(codigo)) throw new Error('El código debe tener 6 números.');
-  if (!permitirIntento_()) return { rol: 'observador', limitado: true };
-  var admins = leerAdmins_();
-  for (var i = 0; i < admins.length; i++) {
-    if (admins[i].codigo === codigo) {
-      return { rol: 'admin', sesion: crearSesion_(admins[i]), nombre: admins[i].nombre };
-    }
-  }
-  return { rol: 'observador' };
+  if (!permitirIntento_()) throw new Error('Demasiados intentos seguidos. Espera unos minutos.');
+  var real = codigoAcceso_();
+  if (!real) throw new Error('Falta el código de acceso en la hoja Config (fila codigo_acceso).');
+  if (codigo !== real) throw new Error('Código incorrecto.');
+  if (!String(correo || '').trim()) return { paso: 'correo' };
+  var persona = buscarPersona_(correo);
+  if (!persona) throw new Error('Ese correo no está en la lista. Pídele a quien administra el tablero que lo agregue.');
+  return { rol: persona.rol, sesion: crearSesion_(persona), nombre: persona.nombre };
 }
 
-function crearSesion_(admin) {
+function crearSesion_(persona) {
   var props = PropertiesService.getScriptProperties();
   var todo = props.getProperties();
   Object.keys(todo).forEach(function (k) {
@@ -388,11 +395,13 @@ function crearSesion_(admin) {
     try { if (JSON.parse(todo[k]).e < Date.now()) props.deleteProperty(k); } catch (err) { props.deleteProperty(k); }
   });
   var token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
-  props.setProperty('ses_' + sha256Hex_(token), JSON.stringify({ h: huellaCodigo_(admin.codigo), e: Date.now() + SESION_DIAS * 86400000 }));
+  props.setProperty('ses_' + sha256Hex_(token), JSON.stringify({
+    c: persona.correo, h: huellaCodigo_(codigoAcceso_()), e: Date.now() + SESION_DIAS * 86400000
+  }));
   return token;
 }
 
-/** La sesión vale mientras no venza y el código de ese admin siga igual en la hoja. */
+/** Vale mientras no venza, el código de acceso siga igual y la persona siga en la hoja (con su rol de ahora). */
 function sesionValida_(token) {
   token = String(token || '');
   if (!/^[a-f0-9]{64}$/.test(token)) return null;
@@ -402,11 +411,9 @@ function sesionValida_(token) {
   var s;
   try { s = JSON.parse(raw); } catch (err) { return null; }
   if (s.e < Date.now()) return null;
-  var admins = leerAdmins_();
-  for (var i = 0; i < admins.length; i++) {
-    if (huellaCodigo_(admins[i].codigo) === s.h) return { nombre: admins[i].nombre, correo: admins[i].correo };
-  }
-  return null;
+  var real = codigoAcceso_();
+  if (!real || huellaCodigo_(real) !== s.h) return null;
+  return buscarPersona_(s.c);
 }
 
 /* ---------- Utilidades ---------- */
@@ -454,44 +461,7 @@ function urlImagen_(v) {
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Tablero')
     .addItem('Preparar o actualizar hojas', 'setup')
-    .addItem('Dar código a los admins que no tengan', 'generarCodigos')
-    .addItem('Código nuevo para la fila seleccionada (Admins)', 'codigoNuevoFila')
     .addToUi();
-}
-
-/** Da un código al azar de 6 números a cada admin de la pestaña Admins que no tenga uno válido. */
-function generarCodigos() {
-  var ss = SpreadsheetApp.getActive();
-  var a = ss.getSheetByName('Admins');
-  if (!a) { setup(); return; }
-  a.getRange('C:C').setNumberFormat('@');
-  a.getRange('C1').setValue('codigo');
-  var n = a.getLastRow();
-  var nuevos = 0;
-  if (n > 1) {
-    var rango = a.getRange(2, 1, n - 1, 3);
-    var vals = rango.getValues();
-    vals.forEach(function (r) {
-      var c = codigoDeHoja_(r[2]);
-      if (c) { r[2] = c; return; }
-      if (String(r[0]).trim() || String(r[1]).trim()) { r[2] = codigoAlAzar_(); nuevos++; }
-    });
-    rango.setValues(vals);
-  }
-  ss.toast(nuevos ? 'Códigos nuevos: ' + nuevos + '. Míralos en la columna C de Admins.' : 'Todos los admins ya tienen código.', 'Tablero', 8);
-}
-
-/** Cambia por uno al azar el código de la fila que tengas seleccionada en la pestaña Admins. */
-function codigoNuevoFila() {
-  var ss = SpreadsheetApp.getActive();
-  var a = ss.getSheetByName('Admins');
-  var hoja = ss.getActiveSheet();
-  if (!a || hoja.getName() !== 'Admins') { ss.toast('Primero selecciona una fila de la pestaña Admins.', 'Tablero', 6); return; }
-  var fila = hoja.getActiveRange().getRow();
-  if (fila < 2) { ss.toast('Selecciona la fila de un admin, no el encabezado.', 'Tablero', 6); return; }
-  a.getRange('C:C').setNumberFormat('@');
-  a.getRange(fila, 3).setValue(codigoAlAzar_());
-  ss.toast('Listo: código nuevo en la fila ' + fila + '. La sesión anterior de esa persona se cerró.', 'Tablero', 8);
 }
 
 function setup() {
@@ -534,32 +504,37 @@ function setup() {
     c.setColumnWidths(2, 1, 260);
   }
 
-  var a = ss.getSheetByName('Admins') || ss.insertSheet('Admins');
-  a.getRange('C:C').setNumberFormat('@');
-  if (a.getLastRow() === 0) {
-    a.getRange(1, 1, 3, 3).setValues([
-      ['nombre', 'correo', 'codigo'],
-      ['Novio', '', codigoAlAzar_()],
-      ['Padrino', '', codigoAlAzar_()]
-    ]);
-  } else {
-    // Hoja de una versión anterior: agrega la columna "codigo" y da uno al azar a quien no lo tenga.
-    a.getRange('C1').setValue('codigo');
-    var n = a.getLastRow();
-    if (n > 1) {
-      var rango = a.getRange(2, 1, n - 1, 3);
-      var vals = rango.getValues();
-      vals.forEach(function (r) {
-        if ((String(r[0]).trim() || String(r[1]).trim()) && !codigoDeHoja_(r[2])) r[2] = codigoAlAzar_();
-        else if (codigoDeHoja_(r[2])) r[2] = codigoDeHoja_(r[2]);
-      });
-      rango.setValues(vals);
+  if (!String(leerConfig_('codigo_acceso')).trim()) {
+    escribirConfig_('codigo_acceso', '150427');
+  }
+  var cfg = ss.getSheetByName(CFG);
+  var filas = cfg.getDataRange().getValues();
+  for (var f = 0; f < filas.length; f++) {
+    if (String(filas[f][0]).trim() === 'codigo_acceso') {
+      // Formato de texto para no perder ceros a la izquierda.
+      var cel = cfg.getRange(f + 1, 2);
+      cel.setNumberFormat('@');
+      var cv = codigoDeHoja_(filas[f][1]);
+      if (cv) cel.setValue(cv);
     }
   }
+
+  var a = ss.getSheetByName('Personas') || ss.insertSheet('Personas');
+  if (a.getLastRow() === 0) {
+    a.getRange(1, 1, 4, 3).setValues([
+      ['nombre', 'correo', 'rol'],
+      ['Novio', '', 'admin'],
+      ['Padrino', '', 'admin'],
+      ['Caballero de honor (ejemplo)', '', 'observador']
+    ]);
+  }
   a.getRange('A1:C1').setFontWeight('bold');
-  a.setColumnWidths(1, 1, 160);
-  a.setColumnWidths(2, 1, 260);
+  a.setFrozenRows(1);
+  a.getRange('C2:C200').setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(['admin', 'observador'], true).build());
+  a.setColumnWidths(1, 1, 200);
+  a.setColumnWidths(2, 1, 280);
   a.setColumnWidths(3, 1, 120);
 
-  ss.toast('Listo. Los códigos de 6 números de cada admin están en la pestaña Admins; cámbialos si quieres.', 'Tablero', 10);
+  ss.toast('Listo. Llena la pestaña Personas (nombre, correo y rol). El código de acceso está en Config.', 'Tablero', 10);
 }

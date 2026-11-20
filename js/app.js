@@ -25,10 +25,9 @@ var CLAVE = (function () {
 
 /* Sesión de administrador (código correcto) o modo observación (cualquier otro código).
    Se guardan en este navegador; "Cerrar sesión" o "Cambiar código" los borra. */
-var SESION = '', ROL = '';
+var SESION = '';
 try {
   SESION = localStorage.getItem('tablero_sesion') || '';
-  ROL = localStorage.getItem('tablero_rol') || '';
 } catch (e) {}
 
 var GR = '<svg class="gr" aria-hidden="true"><rect width="100%" height="100%" filter="url(#gr)" opacity=".25"/></svg>';
@@ -75,7 +74,7 @@ function api(accion, datos) {
 
 /* Modo demostración: datos de ejemplo en memoria, sin backend. */
 var demoPlano = { x: 20, y: 320 };
-var demoAdmin = false;
+var demoAdmin = false, demoUsuario = '';
 var demoTareas = [
   { id: 1, titulo: 'Trajes de los caballeros de honor', responsable: 'Novio', fecha: '12 mar, 3:00 pm', detalle: 'Prueba en la sastrería', imagenOriginal: '', imagen: '', escena: 'traje', estado: 'pendiente', x: 20, y: 28, rotacion: -2, conecta_con: '' },
   { id: 2, titulo: 'Escoger lugar de la despedida', responsable: 'Padrino', fecha: '', detalle: 'Playa, ya elegida', imagenOriginal: '', imagen: '', escena: 'playa', estado: 'completado', x: 255, y: 22, rotacion: 2, conecta_con: '3' },
@@ -90,10 +89,16 @@ function demoPorId(id) {
 function demo(accion, d) {
   var r = null, t;
   if (accion === 'leer') {
-    r = { tareas: JSON.parse(JSON.stringify(demoTareas)), editor: demoAdmin, titulo: 'Despedida de solteros (demostración)', fechaBoda: '', plano: JSON.parse(JSON.stringify(demoPlano)) };
+    r = { tareas: JSON.parse(JSON.stringify(demoTareas)), editor: demoAdmin, usuario: demoUsuario, titulo: 'Despedida de solteros (demostración)', fechaBoda: '', plano: JSON.parse(JSON.stringify(demoPlano)) };
   } else if (accion === 'entrar') {
-    demoAdmin = d.codigo === '123456';
-    r = demoAdmin ? { rol: 'admin', sesion: 'demo', nombre: 'Demostración' } : { rol: 'observador' };
+    if (d.codigo !== '123456') throw new Error('Código incorrecto.');
+    if (!d.correo) {
+      r = { paso: 'correo' };
+    } else {
+      demoAdmin = /admin/i.test(d.correo);
+      demoUsuario = demoAdmin ? 'Admin demo' : 'Visita demo';
+      r = { rol: demoAdmin ? 'admin' : 'observador', sesion: 'demo', nombre: demoUsuario };
+    }
   } else if (accion === 'estado') {
     t = demoPorId(d.id); if (t) t.estado = d.estado; r = d.estado;
   } else if (accion === 'mover') {
@@ -120,13 +125,13 @@ function cargar() {
   return api('leer').then(function (d) {
     S.tareas = d.tareas; S.editor = d.editor; S.titulo = d.titulo; S.fechaBoda = d.fechaBoda; S.plano = d.plano || { x: 20, y: 320 };
     S.usuario = d.usuario || '';
-    if (SESION && !d.editor && !DEMO) {
+    if (SESION && !d.usuario && !DEMO) {
       SESION = '';
       try { localStorage.removeItem('tablero_sesion'); } catch (e) {}
-      mostrarLock('Tu sesión venció. Escribe tu código otra vez.');
+      mostrarLock('Tu sesión venció. Escribe el código otra vez.');
     }
     $('aviso').hidden = !DEMO;
-    if (DEMO) $('aviso').textContent = 'Modo demostración: los cambios no se guardan. Código de administrador de la demo: 123456. Para conectarlo con tu Sheets, pega la URL de Apps Script en js/config.js.';
+    if (DEMO) $('aviso').textContent = 'Modo demostración: los cambios no se guardan. Código de la demo: 123456; con un correo que contenga "admin" editas, con otro solo miras. Para conectarlo con tu Sheets, pega la URL de Apps Script en js/config.js.';
     render();
   }).catch(function (e) {
     $('aviso').hidden = false;
@@ -136,17 +141,26 @@ function cargar() {
 
 /* ---------- Teclado numérico ---------- */
 
-var LARGO_CODIGO = 6, codigo = '', enviando = false;
+var LARGO_CODIGO = 6, codigo = '', codigoOk = '', enviando = false;
 
-function necesitaCodigo() { return !SESION && !CLAVE && ROL !== 'obs'; }
+function necesitaCodigo() { return !SESION && !CLAVE; }
 
 function pintarPuntos() {
   var p = $('lock_dots').children;
   for (var i = 0; i < p.length; i++) p[i].classList.toggle('on', i < codigo.length);
 }
 
+function verPaso(correo) {
+  $('lock_dots').parentNode.hidden = correo;
+  $('lock_pad').hidden = correo;
+  $('lock_mail').hidden = !correo;
+  if (correo) setTimeout(function () { $('lock_correo').focus(); }, 50);
+}
+
 function mostrarLock(msg) {
   codigo = '';
+  codigoOk = '';
+  verPaso(false);
   pintarPuntos();
   $('lock_msg').textContent = msg || '';
   $('led_e').classList.remove('on');
@@ -154,7 +168,7 @@ function mostrarLock(msg) {
 }
 
 function pulsar(n) {
-  if (enviando || codigo.length >= LARGO_CODIGO) return;
+  if (enviando || codigoOk || codigo.length >= LARGO_CODIGO) return;
   $('lock_msg').textContent = '';
   $('led_e').classList.remove('on');
   codigo += n;
@@ -168,21 +182,43 @@ function borrarDigito() {
   pintarPuntos();
 }
 
+function errorLock(msg) {
+  enviando = false;
+  $('lock_msg').textContent = msg;
+  $('led_e').classList.add('on');
+  var d = $('lock_dots');
+  d.classList.remove('sacude');
+  void d.offsetWidth;
+  d.classList.add('sacude');
+}
+
+/* Paso 1: el código. Si es correcto, pide el correo. */
 function enviarCodigo() {
   enviando = true;
-  api('entrar', { codigo: codigo }).then(function (r) {
+  api('entrar', { codigo: codigo }).then(function () {
     enviando = false;
+    codigoOk = codigo;
     codigo = '';
     pintarPuntos();
-    if (r.rol === 'admin') {
-      SESION = r.sesion;
-      if (!DEMO) { try { localStorage.setItem('tablero_sesion', SESION); } catch (e) {} }
-      toast('Hola, ' + r.nombre);
-    } else {
-      ROL = 'obs';
-      if (!DEMO) { try { localStorage.setItem('tablero_rol', 'obs'); } catch (e) {} }
-      if (r.limitado) toast('Muchos intentos seguidos. Si eres administrador, espera unos minutos.');
-    }
+    $('lock_msg').textContent = '';
+    verPaso(true);
+  }).catch(function (e) {
+    codigo = '';
+    pintarPuntos();
+    errorLock(e.message);
+  });
+}
+
+/* Paso 2: el correo. La hoja Personas decide si entra como admin o como observador. */
+function enviarCorreo() {
+  var correo = $('lock_correo').value.trim();
+  if (enviando || !correo) return;
+  enviando = true;
+  api('entrar', { codigo: codigoOk, correo: correo }).then(function (r) {
+    enviando = false;
+    SESION = r.sesion;
+    if (!DEMO) { try { localStorage.setItem('tablero_sesion', SESION); } catch (e) {} }
+    toast('Hola, ' + r.nombre);
     $('led_e').classList.remove('on');
     $('led_p').classList.add('on');
     $('lock').firstElementChild.classList.add('abre');
@@ -190,18 +226,12 @@ function enviarCodigo() {
       $('lock').hidden = true;
       $('lock').firstElementChild.classList.remove('abre');
       $('led_p').classList.remove('on');
+      codigoOk = '';
+      $('lock_correo').value = '';
       return cargar();
     });
   }).catch(function (e) {
-    enviando = false;
-    codigo = '';
-    pintarPuntos();
-    $('lock_msg').textContent = e.message;
-    $('led_e').classList.add('on');
-    var d = $('lock_dots');
-    d.classList.remove('sacude');
-    void d.offsetWidth;
-    d.classList.add('sacude');
+    errorLock(e.message);
   });
 }
 
@@ -219,8 +249,10 @@ function armarTeclado() {
   boton('C', 'accion', function () { if (!enviando) { codigo = ''; pintarPuntos(); } }, 'Borrar todo');
   boton('0', '', function () { pulsar('0'); });
   boton('<', 'accion', borrarDigito, 'Borrar el último número');
+  $('lock_mail').onsubmit = function (ev) { ev.preventDefault(); enviarCorreo(); };
+  $('lock_atras').onclick = function () { codigoOk = ''; $('lock_msg').textContent = ''; verPaso(false); };
   document.addEventListener('keydown', function (ev) {
-    if ($('lock').hidden) return;
+    if ($('lock').hidden || codigoOk) return;
     if (/^[0-9]$/.test(ev.key)) { ev.preventDefault(); pulsar(ev.key); }
     else if (ev.key === 'Backspace') { ev.preventDefault(); borrarDigito(); }
   });
@@ -395,9 +427,8 @@ function render() {
     if (dias > 0) txt = 'Faltan ' + dias + ' días para la boda';
   }
   $('cuenta').textContent = txt;
-  $('modo').textContent = S.editor ? 'Modo edición' + (S.usuario ? ' · ' + S.usuario : '') : 'Modo observación';
+  $('modo').textContent = (S.editor ? 'Modo edición' : 'Modo observación') + (S.usuario ? ' · ' + S.usuario : '');
   $('nuevo').style.display = S.editor ? '' : 'none';
-  $('salir').textContent = S.editor ? 'Cerrar sesión' : 'Cambiar código';
   $('salir').style.display = !necesitaCodigo() ? '' : 'none';
 }
 

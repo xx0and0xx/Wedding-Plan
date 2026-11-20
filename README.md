@@ -42,26 +42,30 @@ apps-script/Code.gs   código que va dentro del Sheets
 ### 3. Enlaces
 
 - Para los caballeros de honor (solo ver): `https://TU-USUARIO.github.io/NOMBRE-DEL-REPO/`
-- Para el novio y el padrino (editar): el mismo enlace; al abrirlo aparece un teclado numérico y cada uno escribe su código de 6 números. Alternativa con la clave: el mismo enlace con `#clave=TU-CLAVE` al final.
+- Para todos: el mismo enlace. Aparece la caja fuerte; se escribe el código de acceso (la fecha de la boda) y luego el correo registrado. La hoja decide si esa persona edita o solo mira. Alternativa con la clave de respaldo: el mismo enlace con `#clave=TU-CLAVE` al final.
 
-## Administradores con código de 6 números
+## Quién entra y con qué rol
 
-Al abrir la página aparece un teclado numérico. Si el código es de un administrador, entra en modo edición. Cualquier otro código de 6 números entra en modo observación (solo ver), así que los caballeros de honor pueden escribir lo que quieran.
+**El código de acceso** es el mismo para todos y está en la pestaña `Config`, fila `codigo_acceso` (6 números, ahora `150427`). Para cambiarlo, edita esa celda: las sesiones abiertas se cierran y todos tendrán que escribir el nuevo.
 
-**La lista:** pestaña `Admins` del Sheets, con tres columnas: `nombre`, `correo` (opcional) y `codigo` (6 números). Para cambiar un código, escribe el nuevo en la celda; vale al instante y cierra las sesiones que usaban el anterior. Para quitar a alguien, borra su fila.
+**La lista de personas:** pestaña `Personas`, con tres columnas:
+- `nombre`
+- `correo`
+- `rol`: `admin` (edita) u `observador` (solo ve). Es un menú desplegable.
 
-**Menú "Tablero" en el Sheets:** al abrir el Sheets aparece arriba el menú `Tablero` (junto a Ayuda). Ahí puedes preparar las hojas, dar código a los admins que no tengan y generar un código nuevo para la fila seleccionada de `Admins`, sin abrir el Apps Script.
-
-**Botón de la esquina:** "Cerrar sesión" (admin) o "Cambiar código" (observador) vuelve a mostrar el teclado. El navegador recuerda la sesión por 30 días.
+Cada persona entra con su correo. Quien no esté en la lista no pasa. El cambio de rol vale al instante, también para quien ya había entrado. Para quitar a alguien, borra su fila.
 
 **Seguridad, en pocas palabras:**
-- El código solo protege la edición. Ver el tablero no es confidencial: cualquiera con el enlace puede leerlo.
-- Hay un límite de 30 intentos cada 10 minutos para todos juntos. Pasado el límite, hasta el código correcto entra como observador; basta esperar unos minutos.
-- Usen códigos que no sean fáciles (nada de 123456 ni 000000).
+- El código es la fecha de la boda: es fácil de adivinar para quien conozca la pareja. Además, el correo no se verifica con una contraseña propia, solo se busca en la lista. Quien sepa el código y el correo de un admin podría entrar como él. Sirve para un tablero entre amigos, no para datos delicados.
+- Si quieres más seguridad, cambia el código por uno menos obvio o quita el rol `admin` a quien no lo necesite.
+- Ver el tablero no es confidencial: cualquiera con el enlace puede leerlo si logra abrirlo.
+- Hay un límite de 30 intentos cada 10 minutos para todos juntos; pasado el límite, hay que esperar unos minutos.
 
-**Actualizar el Apps Script cuando cambie `Code.gs`:** pega el código nuevo, ejecuta `setup` otra vez (crea la pestaña `Admins` con un código al azar para cada admin, o agrega la columna `codigo` si ya existía) y luego Implementar > Administrar implementaciones > Editar (lápiz) > Versión: Nueva versión > Implementar.
+**Menú "Tablero" en el Sheets:** arriba aparece el menú `Tablero` > `Preparar o actualizar hojas`, que hace lo mismo que ejecutar `setup`.
 
-La clave de la celda B2 de `Config` sigue funcionando como respaldo. Para dejar solo el acceso por código, borra el valor de B2.
+**Actualizar el Apps Script cuando cambie `Code.gs`:** pega el código nuevo, ejecuta `setup` otra vez (crea la fila `codigo_acceso` en `Config` y la pestaña `Personas`) y luego Implementar > Administrar implementaciones > Editar (lápiz) > Versión: Nueva versión > Implementar. La pestaña `Admins` de la versión anterior ya no se usa; puedes borrarla.
+
+La clave de la celda B2 de `Config` sigue funcionando como respaldo. Para dejar solo el acceso por correo, borra el valor de B2.
 
 ## Uso diario
 

@@ -6,7 +6,7 @@
 <title>Tablero de la boda</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=4">
+<link rel="stylesheet" href="css/style.css?v=5">
 </head>
 <body>
 <header>
@@ -33,8 +33,14 @@
       <div class="lcd"><div id="lock_dots" aria-hidden="true"></div></div>
       <p id="lock_msg" role="status"></p>
       <div id="lock_pad"></div>
+      <form id="lock_mail" hidden>
+        <label for="lock_correo">Código correcto. Ahora escribe tu correo</label>
+        <input id="lock_correo" type="email" autocomplete="email" inputmode="email" placeholder="correo@ejemplo.com" required>
+        <button type="submit" class="ent">Abrir</button>
+        <button type="button" id="lock_atras" class="atras">Volver al código</button>
+      </form>
     </div>
-    <p class="lk-h">Escribe tu código de 6 números. Los administradores usan su código personal; con cualquier otro solo podrás mirar el tablero.</p>
+    <p class="lk-h">El código es la fecha de la boda. Luego escribe el correo con el que te registraron: los administradores editan y los demás solo miran el tablero.</p>
   </div>
 </div>
 
@@ -59,7 +65,7 @@
 </dialog>
 
 <script src="js/config.js"></script>
-<script src="js/escenas.js?v=4"></script>
-<script src="js/app.js?v=4"></script>
+<script src="js/escenas.js?v=5"></script>
+<script src="js/app.js?v=5"></script>
 </body>
 </html>
