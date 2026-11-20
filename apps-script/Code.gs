@@ -337,7 +337,8 @@ function leerPersonas_() {
   for (var i = 1; i < v.length; i++) {
     var correo = String(v[i][1] || '').trim().toLowerCase();
     if (correo.indexOf('@') < 1) continue;
-    var rol = String(v[i][2] || '').trim().toLowerCase() === 'admin' ? 'admin' : 'observador';
+    var r = String(v[i][2] || '').trim().toLowerCase();
+    var rol = (r.indexOf('admin') === 0 || r === 'editor') ? 'admin' : 'observador';
     salida.push({ nombre: String(v[i][0] || '').trim() || correo, correo: correo, rol: rol });
   }
   return salida;
