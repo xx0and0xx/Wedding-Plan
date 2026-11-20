@@ -50,6 +50,8 @@ Al abrir la página aparece un teclado numérico. Si el código es de un adminis
 
 **La lista:** pestaña `Admins` del Sheets, con tres columnas: `nombre`, `correo` (opcional) y `codigo` (6 números). Para cambiar un código, escribe el nuevo en la celda; vale al instante y cierra las sesiones que usaban el anterior. Para quitar a alguien, borra su fila.
 
+**Menú "Tablero" en el Sheets:** al abrir el Sheets aparece arriba el menú `Tablero` (junto a Ayuda). Ahí puedes preparar las hojas, dar código a los admins que no tengan y generar un código nuevo para la fila seleccionada de `Admins`, sin abrir el Apps Script.
+
 **Botón de la esquina:** "Cerrar sesión" (admin) o "Cambiar código" (observador) vuelve a mostrar el teclado. El navegador recuerda la sesión por 30 días.
 
 **Seguridad, en pocas palabras:**

@@ -448,6 +448,52 @@ function urlImagen_(v) {
 
 /* ---------- Preparación inicial (ejecutar una sola vez) ---------- */
 
+/* ---------- Menú "Tablero" dentro del Google Sheets ---------- */
+
+/** Se ejecuta sola al abrir el Sheets y agrega el menú "Tablero" arriba. */
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('Tablero')
+    .addItem('Preparar o actualizar hojas', 'setup')
+    .addItem('Dar código a los admins que no tengan', 'generarCodigos')
+    .addItem('Código nuevo para la fila seleccionada (Admins)', 'codigoNuevoFila')
+    .addToUi();
+}
+
+/** Da un código al azar de 6 números a cada admin de la pestaña Admins que no tenga uno válido. */
+function generarCodigos() {
+  var ss = SpreadsheetApp.getActive();
+  var a = ss.getSheetByName('Admins');
+  if (!a) { setup(); return; }
+  a.getRange('C:C').setNumberFormat('@');
+  a.getRange('C1').setValue('codigo');
+  var n = a.getLastRow();
+  var nuevos = 0;
+  if (n > 1) {
+    var rango = a.getRange(2, 1, n - 1, 3);
+    var vals = rango.getValues();
+    vals.forEach(function (r) {
+      var c = codigoDeHoja_(r[2]);
+      if (c) { r[2] = c; return; }
+      if (String(r[0]).trim() || String(r[1]).trim()) { r[2] = codigoAlAzar_(); nuevos++; }
+    });
+    rango.setValues(vals);
+  }
+  ss.toast(nuevos ? 'Códigos nuevos: ' + nuevos + '. Míralos en la columna C de Admins.' : 'Todos los admins ya tienen código.', 'Tablero', 8);
+}
+
+/** Cambia por uno al azar el código de la fila que tengas seleccionada en la pestaña Admins. */
+function codigoNuevoFila() {
+  var ss = SpreadsheetApp.getActive();
+  var a = ss.getSheetByName('Admins');
+  var hoja = ss.getActiveSheet();
+  if (!a || hoja.getName() !== 'Admins') { ss.toast('Primero selecciona una fila de la pestaña Admins.', 'Tablero', 6); return; }
+  var fila = hoja.getActiveRange().getRow();
+  if (fila < 2) { ss.toast('Selecciona la fila de un admin, no el encabezado.', 'Tablero', 6); return; }
+  a.getRange('C:C').setNumberFormat('@');
+  a.getRange(fila, 3).setValue(codigoAlAzar_());
+  ss.toast('Listo: código nuevo en la fila ' + fila + '. La sesión anterior de esa persona se cerró.', 'Tablero', 8);
+}
+
 function setup() {
   var ss = SpreadsheetApp.getActive();
   PropertiesService.getScriptProperties().setProperty('SS_ID', ss.getId());
