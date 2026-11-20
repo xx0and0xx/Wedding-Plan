@@ -4,8 +4,10 @@
  * Toda la información queda en este Sheets (pestañas "Tareas" y "Config").
  *
  * Quién puede editar:
- *  - Los correos de la pestaña "Admins" (nombre y correo), que entran con Google.
+ *  - Quien escriba en el teclado numérico el código de 6 números de un administrador
+ *    (pestaña "Admins": nombre, correo opcional y código).
  *  - O quien use la clave de la celda B2 de "Config" (respaldo).
+ * Cualquier otro código de 6 números entra en modo observación (solo ver).
  *
  * Primer uso: ejecuta setup() una sola vez y luego publica como aplicación web.
  */
@@ -42,7 +44,7 @@ function manejar_(p) {
   var acceso = { clave: p.clave, sesion: p.sesion };
   switch (p.accion) {
     case 'leer': return getTablero(acceso);
-    case 'entrar': return entrar_(p.credential);
+    case 'entrar': return entrar_(p.codigo);
     case 'estado': return cambiarEstado(acceso, p.id, p.estado);
     case 'mover': return moverTarea(acceso, p.id, p.x, p.y);
     case 'plano': return moverPlano(acceso, p.x, p.y);
@@ -64,7 +66,6 @@ function getTablero(acceso) {
     tareas: leerTareas_(),
     editor: !!quien,
     usuario: quien ? quien.nombre : '',
-    clientId: String(leerConfig_('google_client_id') || '').trim(),
     titulo: leerConfig_('titulo') || 'Tablero de la boda',
     fechaBoda: fechaConfig_('fecha_boda'),
     plano: { x: numero_(leerConfig_('plano_x'), 20, 0, 5000), y: numero_(leerConfig_('plano_y'), 320, 0, 5000) }
@@ -245,16 +246,6 @@ function leerConfig_(clave) {
   return '';
 }
 
-function existeConfig_(clave) {
-  var c = ss_().getSheetByName(CFG);
-  if (!c) return false;
-  var v = c.getDataRange().getValues();
-  for (var i = 0; i < v.length; i++) {
-    if (String(v[i][0]).trim() === clave) return true;
-  }
-  return false;
-}
-
 function escribirConfig_(clave, valor) {
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -280,7 +271,7 @@ function fechaConfig_(clave) {
   return isNaN(d.getTime()) ? '' : Utilities.formatDate(d, 'America/Bogota', 'yyyy-MM-dd');
 }
 
-/** Devuelve { nombre, correo } si el acceso es válido (sesión de Google o clave), o null. */
+/** Devuelve { nombre, correo } si el acceso es válido (sesión por código o clave), o null. */
 function quien_(acceso) {
   acceso = acceso || {};
   var s = sesionValida_(acceso.sesion);
@@ -299,35 +290,94 @@ function exigirEditor_(acceso) {
 /* ---------- Administradores (pestaña "Admins") y sesiones ---------- */
 
 var SESION_DIAS = 30;
+var MAX_INTENTOS_CODIGO = 30;   // intentos de código permitidos por ventana
+var VENTANA_CODIGO_SEG = 600;   // 10 minutos
 
-function buscarAdmin_(correo) {
-  var h = ss_().getSheetByName('Admins');
-  if (!h) return null;
-  var buscado = String(correo || '').trim().toLowerCase();
-  if (!buscado) return null;
-  var v = h.getDataRange().getValues();
-  for (var i = 1; i < v.length; i++) {
-    var c = String(v[i][1] || '').trim().toLowerCase();
-    if (c && c === buscado) return { nombre: String(v[i][0] || '').trim() || c, correo: c };
+function sha256Hex_(texto) {
+  var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, texto, Utilities.Charset.UTF_8);
+  var hex = '';
+  for (var i = 0; i < bytes.length; i++) {
+    var b = bytes[i] < 0 ? bytes[i] + 256 : bytes[i];
+    hex += (b < 16 ? '0' : '') + b.toString(16);
   }
-  return null;
+  return hex;
 }
 
-/** Verifica el token de Google, comprueba que el correo esté en Admins y abre una sesión. */
-function entrar_(credential) {
-  var clientId = String(leerConfig_('google_client_id') || '').trim();
-  if (!clientId) throw new Error('Falta el ID de cliente de Google en la pestaña Config (fila google_client_id).');
-  if (!credential || String(credential).length > 4000) throw new Error('Credencial inválida.');
-  var r = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(credential), { muteHttpExceptions: true });
-  if (r.getResponseCode() !== 200) throw new Error('No pude verificar tu cuenta de Google. Intenta de nuevo.');
-  var t = JSON.parse(r.getContentText());
-  if (t.aud !== clientId) throw new Error('El ID de cliente de Google no coincide con el de la pestaña Config.');
-  if (t.iss !== 'accounts.google.com' && t.iss !== 'https://accounts.google.com') throw new Error('Credencial inválida.');
-  if (String(t.email_verified) !== 'true') throw new Error('Tu correo de Google no está verificado.');
-  if (Number(t.exp) * 1000 < Date.now()) throw new Error('La credencial venció. Intenta de nuevo.');
-  var admin = buscarAdmin_(t.email);
-  if (!admin) throw new Error('El correo ' + t.email + ' no está en la lista de administradores.');
-  return { sesion: crearSesion_(admin), nombre: admin.nombre, correo: admin.correo };
+/** Sal secreta: se genera una sola vez y vive en las propiedades del script. */
+function sal_() {
+  var props = PropertiesService.getScriptProperties();
+  var s = props.getProperty('SAL');
+  if (!s) {
+    s = Utilities.getUuid() + Utilities.getUuid();
+    props.setProperty('SAL', s);
+  }
+  return s;
+}
+
+function huellaCodigo_(codigo) {
+  return sha256Hex_(sal_() + '|codigo|' + codigo).substring(0, 32);
+}
+
+/** Acepta el código como texto o número y devuelve 6 dígitos (recupera ceros a la izquierda), o ''. */
+function codigoDeHoja_(v) {
+  var t = String(v === null || v === undefined ? '' : v).trim();
+  if (/^\d{1,6}$/.test(t)) t = ('000000' + t).slice(-6);
+  return /^\d{6}$/.test(t) ? t : '';
+}
+
+function codigoAlAzar_() {
+  return String(Math.floor(Math.random() * 900000) + 100000);
+}
+
+function leerAdmins_() {
+  var h = ss_().getSheetByName('Admins');
+  if (!h) return [];
+  var v = h.getDataRange().getValues();
+  var salida = [];
+  for (var i = 1; i < v.length; i++) {
+    var codigo = codigoDeHoja_(v[i][2]);
+    if (!codigo) continue;
+    var correo = String(v[i][1] || '').trim().toLowerCase();
+    salida.push({ nombre: String(v[i][0] || '').trim() || correo || 'Admin', correo: correo, codigo: codigo });
+  }
+  return salida;
+}
+
+/** Máximo de intentos por ventana de tiempo, compartido por todos (no sabemos quién es cada visitante). */
+function permitirIntento_() {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(5000);
+  try {
+    var cache = CacheService.getScriptCache();
+    var ahora = Date.now();
+    var v = null;
+    try { v = JSON.parse(cache.get('codigo_ventana') || 'null'); } catch (err) { v = null; }
+    if (!v || ahora - v.t > VENTANA_CODIGO_SEG * 1000) v = { n: 0, t: ahora };
+    if (v.n >= MAX_INTENTOS_CODIGO) return false;
+    v.n++;
+    cache.put('codigo_ventana', JSON.stringify(v), Math.max(1, Math.ceil(VENTANA_CODIGO_SEG - (ahora - v.t) / 1000)));
+    return true;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
+ * Teclado numérico: si el código es de un administrador, abre una sesión de edición;
+ * cualquier otro código entra como observador. Si hay demasiados intentos seguidos,
+ * no se comprueba el código y se responde observador (así no se puede adivinar).
+ */
+function entrar_(codigo) {
+  codigo = String(codigo === null || codigo === undefined ? '' : codigo).trim();
+  if (!/^\d{6}$/.test(codigo)) throw new Error('El código debe tener 6 números.');
+  if (!permitirIntento_()) return { rol: 'observador', limitado: true };
+  var admins = leerAdmins_();
+  for (var i = 0; i < admins.length; i++) {
+    if (admins[i].codigo === codigo) {
+      return { rol: 'admin', sesion: crearSesion_(admins[i]), nombre: admins[i].nombre };
+    }
+  }
+  return { rol: 'observador' };
 }
 
 function crearSesion_(admin) {
@@ -338,20 +388,25 @@ function crearSesion_(admin) {
     try { if (JSON.parse(todo[k]).e < Date.now()) props.deleteProperty(k); } catch (err) { props.deleteProperty(k); }
   });
   var token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
-  props.setProperty('ses_' + token, JSON.stringify({ c: admin.correo, e: Date.now() + SESION_DIAS * 86400000 }));
+  props.setProperty('ses_' + sha256Hex_(token), JSON.stringify({ h: huellaCodigo_(admin.codigo), e: Date.now() + SESION_DIAS * 86400000 }));
   return token;
 }
 
-/** La sesión sigue valiendo solo si no venció y el correo todavía está en Admins. */
+/** La sesión vale mientras no venza y el código de ese admin siga igual en la hoja. */
 function sesionValida_(token) {
   token = String(token || '');
   if (!/^[a-f0-9]{64}$/.test(token)) return null;
-  var raw = PropertiesService.getScriptProperties().getProperty('ses_' + token);
+  var props = PropertiesService.getScriptProperties();
+  var raw = props.getProperty('ses_' + sha256Hex_(token));
   if (!raw) return null;
   var s;
   try { s = JSON.parse(raw); } catch (err) { return null; }
   if (s.e < Date.now()) return null;
-  return buscarAdmin_(s.c);
+  var admins = leerAdmins_();
+  for (var i = 0; i < admins.length; i++) {
+    if (huellaCodigo_(admins[i].codigo) === s.h) return { nombre: admins[i].nombre, correo: admins[i].correo };
+  }
+  return null;
 }
 
 /* ---------- Utilidades ---------- */
@@ -433,18 +488,32 @@ function setup() {
     c.setColumnWidths(2, 1, 260);
   }
 
-  if (!ss.getSheetByName('Admins')) {
-    var a = ss.insertSheet('Admins');
-    a.getRange(1, 1, 3, 2).setValues([
-      ['nombre', 'correo'],
-      ['Novio', 'novio@example.com'],
-      ['Padrino', 'padrino@example.com']
+  var a = ss.getSheetByName('Admins') || ss.insertSheet('Admins');
+  a.getRange('C:C').setNumberFormat('@');
+  if (a.getLastRow() === 0) {
+    a.getRange(1, 1, 3, 3).setValues([
+      ['nombre', 'correo', 'codigo'],
+      ['Novio', '', codigoAlAzar_()],
+      ['Padrino', '', codigoAlAzar_()]
     ]);
-    a.getRange('A1:B1').setFontWeight('bold');
-    a.setColumnWidths(1, 1, 160);
-    a.setColumnWidths(2, 1, 280);
+  } else {
+    // Hoja de una versión anterior: agrega la columna "codigo" y da uno al azar a quien no lo tenga.
+    a.getRange('C1').setValue('codigo');
+    var n = a.getLastRow();
+    if (n > 1) {
+      var rango = a.getRange(2, 1, n - 1, 3);
+      var vals = rango.getValues();
+      vals.forEach(function (r) {
+        if ((String(r[0]).trim() || String(r[1]).trim()) && !codigoDeHoja_(r[2])) r[2] = codigoAlAzar_();
+        else if (codigoDeHoja_(r[2])) r[2] = codigoDeHoja_(r[2]);
+      });
+      rango.setValues(vals);
+    }
   }
-  if (!existeConfig_('google_client_id')) escribirConfig_('google_client_id', '');
+  a.getRange('A1:C1').setFontWeight('bold');
+  a.setColumnWidths(1, 1, 160);
+  a.setColumnWidths(2, 1, 260);
+  a.setColumnWidths(3, 1, 120);
 
-  ss.toast('Listo. Cambia los correos de ejemplo en la pestaña Admins por los reales.', 'Tablero', 10);
+  ss.toast('Listo. Los códigos de 6 números de cada admin están en la pestaña Admins; cámbialos si quieres.', 'Tablero', 10);
 }

@@ -2,7 +2,7 @@
    Los datos viven en el Google Sheets; aquí solo se dibujan y se envían los cambios. */
 
 var BW = 720, BH = 560, scale = 1;
-var S = { tareas: [], editor: false, titulo: '', fechaBoda: '', plano: { x: 20, y: 320 }, usuario: '', clientId: '' };
+var S = { tareas: [], editor: false, titulo: '', fechaBoda: '', plano: { x: 20, y: 320 }, usuario: '' };
 var drag = null, confirmarBorrado = false, editando = null;
 var DEMO = !CFG.API_URL;
 
@@ -23,9 +23,13 @@ var CLAVE = (function () {
   }
 })();
 
-/* Sesión de un administrador que entró con Google (se guarda en este navegador). */
-var SESION = '';
-try { SESION = localStorage.getItem('tablero_sesion') || ''; } catch (e) {}
+/* Sesión de administrador (código correcto) o modo observación (cualquier otro código).
+   Se guardan en este navegador; "Cerrar sesión" o "Cambiar código" los borra. */
+var SESION = '', ROL = '';
+try {
+  SESION = localStorage.getItem('tablero_sesion') || '';
+  ROL = localStorage.getItem('tablero_rol') || '';
+} catch (e) {}
 
 var GR = '<svg class="gr" aria-hidden="true"><rect width="100%" height="100%" filter="url(#gr)" opacity=".25"/></svg>';
 var LAPIZ = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3"/></svg>';
@@ -71,6 +75,7 @@ function api(accion, datos) {
 
 /* Modo demostración: datos de ejemplo en memoria, sin backend. */
 var demoPlano = { x: 20, y: 320 };
+var demoAdmin = false;
 var demoTareas = [
   { id: 1, titulo: 'Trajes de los caballeros de honor', responsable: 'Novio', fecha: '12 mar, 3:00 pm', detalle: 'Prueba en la sastrería', imagenOriginal: '', imagen: '', escena: 'traje', estado: 'pendiente', x: 20, y: 28, rotacion: -2, conecta_con: '' },
   { id: 2, titulo: 'Escoger lugar de la despedida', responsable: 'Padrino', fecha: '', detalle: 'Playa, ya elegida', imagenOriginal: '', imagen: '', escena: 'playa', estado: 'completado', x: 255, y: 22, rotacion: 2, conecta_con: '3' },
@@ -85,7 +90,10 @@ function demoPorId(id) {
 function demo(accion, d) {
   var r = null, t;
   if (accion === 'leer') {
-    r = { tareas: JSON.parse(JSON.stringify(demoTareas)), editor: true, titulo: 'Despedida de solteros (demostración)', fechaBoda: '', plano: JSON.parse(JSON.stringify(demoPlano)) };
+    r = { tareas: JSON.parse(JSON.stringify(demoTareas)), editor: demoAdmin, titulo: 'Despedida de solteros (demostración)', fechaBoda: '', plano: JSON.parse(JSON.stringify(demoPlano)) };
+  } else if (accion === 'entrar') {
+    demoAdmin = d.codigo === '123456';
+    r = demoAdmin ? { rol: 'admin', sesion: 'demo', nombre: 'Demostración' } : { rol: 'observador' };
   } else if (accion === 'estado') {
     t = demoPorId(d.id); if (t) t.estado = d.estado; r = d.estado;
   } else if (accion === 'mover') {
@@ -111,49 +119,104 @@ function demo(accion, d) {
 function cargar() {
   return api('leer').then(function (d) {
     S.tareas = d.tareas; S.editor = d.editor; S.titulo = d.titulo; S.fechaBoda = d.fechaBoda; S.plano = d.plano || { x: 20, y: 320 };
-    S.usuario = d.usuario || ''; S.clientId = d.clientId || '';
-    if (SESION && !d.editor) {
+    S.usuario = d.usuario || '';
+    if (SESION && !d.editor && !DEMO) {
       SESION = '';
       try { localStorage.removeItem('tablero_sesion'); } catch (e) {}
-      toast('Tu sesión venció. Inicia sesión de nuevo.');
+      mostrarLock('Tu sesión venció. Escribe tu código otra vez.');
     }
     $('aviso').hidden = !DEMO;
-    if (DEMO) $('aviso').textContent = 'Modo demostración: los cambios no se guardan. Para conectarlo con tu Sheets, pega la URL de Apps Script en js/config.js.';
+    if (DEMO) $('aviso').textContent = 'Modo demostración: los cambios no se guardan. Código de administrador de la demo: 123456. Para conectarlo con tu Sheets, pega la URL de Apps Script en js/config.js.';
     render();
-    iniciarGoogle();
   }).catch(function (e) {
     $('aviso').hidden = false;
     $('aviso').textContent = 'No pude leer el tablero: ' + e.message;
   });
 }
 
-/* ---------- Inicio de sesión con Google ---------- */
+/* ---------- Teclado numérico ---------- */
 
-var gsiCargado = false;
-function iniciarGoogle() {
-  var caja = $('gsi');
-  if (DEMO || S.editor || !S.clientId) { caja.style.display = 'none'; return; }
-  caja.style.display = '';
-  if (gsiCargado) return;
-  gsiCargado = true;
-  var s = document.createElement('script');
-  s.src = 'https://accounts.google.com/gsi/client';
-  s.async = true;
-  s.onload = function () {
-    google.accounts.id.initialize({ client_id: S.clientId, callback: alEntrarGoogle });
-    google.accounts.id.renderButton(caja, { theme: 'filled_black', size: 'medium', text: 'signin_with', locale: 'es' });
-  };
-  s.onerror = function () { gsiCargado = false; toast('No pude cargar el inicio de sesión de Google.'); };
-  document.head.appendChild(s);
+var LARGO_CODIGO = 6, codigo = '', enviando = false;
+
+function necesitaCodigo() { return !SESION && !CLAVE && ROL !== 'obs'; }
+
+function pintarPuntos() {
+  var p = $('lock_dots').children;
+  for (var i = 0; i < p.length; i++) p[i].classList.toggle('on', i < codigo.length);
 }
 
-function alEntrarGoogle(resp) {
-  api('entrar', { credential: resp.credential }).then(function (r) {
-    SESION = r.sesion;
-    try { localStorage.setItem('tablero_sesion', SESION); } catch (e) {}
-    toast('Hola, ' + r.nombre);
+function mostrarLock(msg) {
+  codigo = '';
+  pintarPuntos();
+  $('lock_msg').textContent = msg || '';
+  $('lock').hidden = false;
+}
+
+function pulsar(n) {
+  if (enviando || codigo.length >= LARGO_CODIGO) return;
+  $('lock_msg').textContent = '';
+  codigo += n;
+  pintarPuntos();
+  if (codigo.length === LARGO_CODIGO) enviarCodigo();
+}
+
+function borrarDigito() {
+  if (enviando) return;
+  codigo = codigo.slice(0, -1);
+  pintarPuntos();
+}
+
+function enviarCodigo() {
+  enviando = true;
+  api('entrar', { codigo: codigo }).then(function (r) {
+    enviando = false;
+    codigo = '';
+    pintarPuntos();
+    if (r.rol === 'admin') {
+      SESION = r.sesion;
+      if (!DEMO) { try { localStorage.setItem('tablero_sesion', SESION); } catch (e) {} }
+      toast('Hola, ' + r.nombre);
+    } else {
+      ROL = 'obs';
+      if (!DEMO) { try { localStorage.setItem('tablero_rol', 'obs'); } catch (e) {} }
+      if (r.limitado) toast('Muchos intentos seguidos. Si eres administrador, espera unos minutos.');
+    }
+    $('lock').hidden = true;
     return cargar();
-  }).catch(function (e) { toast(e.message); });
+  }).catch(function (e) {
+    enviando = false;
+    codigo = '';
+    pintarPuntos();
+    $('lock_msg').textContent = e.message;
+    var d = $('lock_dots');
+    d.classList.remove('sacude');
+    void d.offsetWidth;
+    d.classList.add('sacude');
+  });
+}
+
+function armarTeclado() {
+  var dots = $('lock_dots'), pad = $('lock_pad');
+  for (var i = 0; i < LARGO_CODIGO; i++) dots.appendChild(document.createElement('i'));
+  function boton(txt, cls, fn, etiqueta) {
+    var b = el('button', cls, txt);
+    b.type = 'button';
+    if (etiqueta) b.setAttribute('aria-label', etiqueta);
+    b.onclick = fn;
+    pad.appendChild(b);
+  }
+  [1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(function (n) { boton(String(n), '', function () { pulsar(String(n)); }); });
+  var vacio = el('button', 'vacio');
+  vacio.tabIndex = -1;
+  vacio.setAttribute('aria-hidden', 'true');
+  pad.appendChild(vacio);
+  boton('0', '', function () { pulsar('0'); });
+  boton('Borrar', 'borrar', borrarDigito, 'Borrar el último número');
+  document.addEventListener('keydown', function (ev) {
+    if ($('lock').hidden) return;
+    if (/^[0-9]$/.test(ev.key)) { ev.preventDefault(); pulsar(ev.key); }
+    else if (ev.key === 'Backspace') { ev.preventDefault(); borrarDigito(); }
+  });
 }
 
 /* ---------- Tarjetas ---------- */
@@ -325,9 +388,10 @@ function render() {
     if (dias > 0) txt = 'Faltan ' + dias + ' días para la boda';
   }
   $('cuenta').textContent = txt;
-  $('modo').textContent = S.editor ? 'Modo edición' + (S.usuario ? ' · ' + S.usuario : '') : 'Solo lectura';
+  $('modo').textContent = S.editor ? 'Modo edición' + (S.usuario ? ' · ' + S.usuario : '') : 'Modo observación';
   $('nuevo').style.display = S.editor ? '' : 'none';
-  $('salir').style.display = (S.editor && !DEMO) ? '' : 'none';
+  $('salir').textContent = S.editor ? 'Cerrar sesión' : 'Cambiar código';
+  $('salir').style.display = !necesitaCodigo() ? '' : 'none';
 }
 
 function ajustar() {
@@ -361,8 +425,11 @@ $('nuevo').onclick = function () { abrirDialogo(null); };
 $('b_cancel').onclick = function () { $('dlg').close(); };
 $('f_titulo').oninput = function () { $('err').textContent = ''; };
 $('salir').onclick = function () {
-  try { localStorage.removeItem('tablero_clave'); localStorage.removeItem('tablero_sesion'); } catch (e) {}
-  if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect();
+  try {
+    localStorage.removeItem('tablero_clave');
+    localStorage.removeItem('tablero_sesion');
+    localStorage.removeItem('tablero_rol');
+  } catch (e) {}
   location.reload();
 };
 $('b_del').onclick = function () {
@@ -414,6 +481,8 @@ Object.keys(ESCENAS).forEach(function (k) {
   $('f_escena').appendChild(o);
 });
 
+armarTeclado();
+if (necesitaCodigo()) mostrarLock();
 cargar();
 setInterval(function () {
   if (!drag && !$('dlg').open && !DEMO) cargar();

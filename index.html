@@ -13,7 +13,6 @@
   <h1 id="titulo">Tablero</h1>
   <div class="info"><span id="cuenta"></span></div>
   <div class="sp"></div>
-  <div id="gsi" style="display:none"></div>
   <span class="modo" id="modo"></span>
   <button class="btn" id="nuevo" style="display:none">Nueva tarea</button>
   <button class="lnk" id="salir" style="display:none">Cerrar sesión</button>
@@ -21,6 +20,16 @@
 <p id="aviso" hidden></p>
 <div id="wrap"><div id="frame"><div id="board"></div></div></div>
 <div id="toast" role="status"></div>
+
+<div id="lock" role="dialog" aria-modal="true" aria-labelledby="lock_t" hidden>
+  <div class="lk">
+    <h2 id="lock_t">Ingresa tu código</h2>
+    <div id="lock_dots" aria-hidden="true"></div>
+    <p id="lock_msg" role="status"></p>
+    <div id="lock_pad"></div>
+    <p class="lk-h">Administradores: escriban su código personal. Para solo mirar el tablero, escribe cualquier código de 6 números.</p>
+  </div>
+</div>
 
 <dialog id="dlg">
   <form id="frm">

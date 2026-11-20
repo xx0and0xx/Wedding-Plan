@@ -62,3 +62,21 @@ dialog input,dialog textarea,dialog select{display:block;width:100%;margin-top:4
 .sec{background:transparent;border:1px solid #b9b3a3;border-radius:6px;padding:8px 14px;color:#2c2c2a}
 .danger{background:transparent;border:1px solid #A32D2D;color:#A32D2D;border-radius:6px;padding:8px 12px}
 .err{color:#A32D2D;font-size:13px;margin:6px 0 0}
+
+[hidden]{display:none!important}
+#lock{position:fixed;inset:0;z-index:40;background:#3a2a1c;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto}
+.lk{width:100%;max-width:320px;text-align:center}
+.lk h2{font-family:'Caveat',cursive;font-size:36px;margin:0 0 16px;font-weight:700;line-height:1}
+#lock_dots{display:flex;justify-content:center;gap:14px;margin-bottom:8px}
+#lock_dots i{width:13px;height:13px;border-radius:50%;border:1.5px solid #d9c7a6;transition:background .1s}
+#lock_dots i.on{background:#f5ecdc;border-color:#f5ecdc}
+#lock_dots.sacude{animation:sacude .4s}
+@keyframes sacude{0%,100%{transform:translateX(0)}20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+#lock_msg{min-height:20px;font-size:13px;color:#FAC775;margin:0 0 12px}
+#lock_pad{display:grid;grid-template-columns:repeat(3,72px);gap:16px;justify-content:center}
+#lock_pad button{width:72px;height:72px;border-radius:50%;border:1.5px solid #d9c7a6;background:transparent;color:#f5ecdc;font-size:28px;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+#lock_pad button:active{background:rgba(245,236,220,.22)}
+#lock_pad button:focus-visible{outline:3px solid #FAC775}
+#lock_pad .vacio{visibility:hidden}
+#lock_pad .borrar{border:0;font-size:15px;color:#d9c7a6}
+.lk-h{font-size:12px;color:#d9c7a6;margin:24px 0 0;line-height:1.5}
