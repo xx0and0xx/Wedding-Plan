@@ -73,14 +73,14 @@ function api(accion, datos) {
 }
 
 /* Modo demostración: datos de ejemplo en memoria, sin backend. */
-var demoPlano = { x: 20, y: 440 };
+var demoPlano = { x: 20, y: 470 };
 var demoAdmin = false, demoUsuario = '';
 var demoTareas = [
   { id: 1, titulo: 'Trajes de los caballeros de honor', responsable: 'Novio', fecha: '', detalle: '2026-12-05 15:00|Cita 1: Juan y Pedro\n2026-12-06 10:30|Cita 2: Luis\n2026-12-12|Cita 3: Mateo\nLlevar zapatos negros', imagenOriginal: '', imagen: '', escena: 'traje', ajuste: 'cubrir', estado: 'pendiente', x: 20, y: 28, rotacion: -2, conecta_con: '' },
   { id: 2, titulo: 'Escoger lugar de la despedida', responsable: 'Padrino', fecha: '', detalle: 'Playa, ya elegida', imagenOriginal: '', imagen: '', escena: 'playa', estado: 'completado', x: 255, y: 22, rotacion: 2, conecta_con: '3' },
   { id: 3, titulo: 'Definir fecha y días del viaje', responsable: 'Novio y padrino', fecha: '', detalle: '3 días, fecha por definir', imagenOriginal: '', imagen: '', escena: 'calendario', estado: 'pendiente', x: 490, y: 34, rotacion: -1.5, conecta_con: '4,5' },
-  { id: 4, titulo: 'Comprar tiquetes', responsable: 'Padrino', fecha: '', detalle: 'Esperan la fecha', imagenOriginal: '', imagen: '', escena: 'tiquetes', estado: 'pendiente', x: 255, y: 262, rotacion: -2, conecta_con: '' },
-  { id: 5, titulo: 'Reservar habitaciones', responsable: 'Novio', fecha: '', detalle: 'Esperan fecha y lugar', imagenOriginal: '', imagen: '', escena: 'habitacion', estado: 'pendiente', x: 490, y: 268, rotacion: 2.5, conecta_con: '' }
+  { id: 4, titulo: 'Comprar tiquetes', responsable: 'Padrino', fecha: '', detalle: 'Esperan la fecha', imagenOriginal: '', imagen: '', escena: 'tiquetes', estado: 'pendiente', x: 255, y: 300, rotacion: -2, conecta_con: '' },
+  { id: 5, titulo: 'Reservar habitaciones', responsable: 'Novio', fecha: '', detalle: 'Esperan fecha y lugar', imagenOriginal: '', imagen: '', escena: 'habitacion', estado: 'pendiente', x: 490, y: 306, rotacion: 2.5, conecta_con: '' }
 ];
 function demoPorId(id) {
   for (var i = 0; i < demoTareas.length; i++) if (demoTareas[i].id === Number(id)) return demoTareas[i];
@@ -99,6 +99,10 @@ function demo(accion, d) {
       demoUsuario = demoAdmin ? 'Admin demo' : 'Visita demo';
       r = { rol: demoAdmin ? 'admin' : 'observador', sesion: 'demo', nombre: demoUsuario };
     }
+  } else if (accion === 'personas') {
+    r = [{ nombre: 'Novio', correo: 'novio@demo.com', rol: 'admin' }, { nombre: 'Juan', correo: 'juan@demo.com', rol: 'observador' }, { nombre: 'Pedro', correo: 'pedro@demo.com', rol: 'observador' }];
+  } else if (accion === 'agendar') {
+    r = { id: 'demo@google.com', invitados: (d.invitados || []).length };
   } else if (accion === 'notas') {
     t = demoPorId(d.id); if (t) t.detalle = d.detalle; r = true;
   } else if (accion === 'estado') {
@@ -276,7 +280,7 @@ function textoFecha(s) {
   return t;
 }
 
-var RE_MARCA = /^\[(ok|-?\d+,-?\d+)\]/;
+var RE_MARCA = /^\[(ok|-?\d+,-?\d+|ev=[^\]\s]+)\]/;
 
 /**
  * El detalle guarda una nota por línea: "[ok][x,y]AAAA-MM-DD HH:MM|texto".
@@ -285,26 +289,27 @@ var RE_MARCA = /^\[(ok|-?\d+,-?\d+)\]/;
 function leerNotas(detalle) {
   var salida = [];
   String(detalle || '').split('\n').forEach(function (linea) {
-    var ok = false, pos = null, m;
+    var ok = false, pos = null, ev = '', m;
     linea = linea.trim();
     while ((m = RE_MARCA.exec(linea))) {
       if (m[1] === 'ok') ok = true;
+      else if (m[1].indexOf('ev=') === 0) ev = m[1].slice(3);
       else { var p = m[1].split(','); pos = { x: +p[0], y: +p[1] }; }
       linea = linea.slice(m[0].length).trim();
     }
     if (!linea) return;
     var i = linea.indexOf('|');
     if (i > 0 && RE_FECHA.test(linea.slice(0, i).trim())) {
-      salida.push({ fecha: linea.slice(0, i).trim(), texto: linea.slice(i + 1).trim(), ok: ok, pos: pos });
+      salida.push({ fecha: linea.slice(0, i).trim(), texto: linea.slice(i + 1).trim(), ok: ok, pos: pos, ev: ev });
     } else {
-      salida.push({ fecha: '', texto: linea, ok: ok, pos: pos });
+      salida.push({ fecha: '', texto: linea, ok: ok, pos: pos, ev: ev });
     }
   });
   return salida;
 }
 
 function lineaNota(n) {
-  return (n.ok ? '[ok]' : '') + (n.pos ? '[' + n.pos.x + ',' + n.pos.y + ']' : '') + (n.fecha ? n.fecha + '|' : '') + n.texto;
+  return (n.ok ? '[ok]' : '') + (n.ev ? '[ev=' + n.ev + ']' : '') + (n.pos ? '[' + n.pos.x + ',' + n.pos.y + ']' : '') + (n.fecha ? n.fecha + '|' : '') + n.texto;
 }
 
 function guardarNotasTarea(t) {
@@ -314,9 +319,22 @@ function guardarNotasTarea(t) {
 
 function limitar(v, min, max) { return Math.min(max, Math.max(min, v)); }
 
-/** Cada nota es una notita con su círculo para marcarla como hecha; los admins pueden arrastrarla alrededor de su tarjeta. */
-function crearNota(t, c, n) {
-  var e = el('div', 'nota' + (n.ok ? ' ok' : ''));
+var CARD_H = 252;
+
+function iconoCal() {
+  var i = el('span', 'ic');
+  i.title = 'Agendada en Google Calendar';
+  i.setAttribute('aria-label', 'Agendada en Google Calendar');
+  i.innerHTML = '<svg viewBox="0 0 12 12" width="11" height="11" aria-hidden="true"><rect x="1" y="2" width="10" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M1 5h10M4 1v2M8 1v2" stroke="currentColor" stroke-width="1.2" fill="none"/></svg>';
+  return i;
+}
+
+/**
+ * Cada nota es una notita con su círculo para marcarla como hecha. La primera ocupa el lugar fijo
+ * de la tarjeta; las demás cuelgan debajo hasta que un admin las arrastre a donde quiera.
+ */
+function crearNota(t, c, n, i) {
+  var e = el('div', 'nota' + (n.ok ? ' ok' : '') + (i % 2 ? ' par' : ''));
   var ck = el(S.editor ? 'button' : 'span', 'ck');
   ck.setAttribute('aria-label', n.ok ? 'Nota hecha' : 'Nota pendiente');
   if (S.editor) {
@@ -333,12 +351,21 @@ function crearNota(t, c, n) {
     });
   }
   e.appendChild(ck);
-  if (n.fecha) e.appendChild(el('span', 'nf', textoFecha(n.fecha)));
+  if (n.fecha || n.ev) {
+    var nf = el('span', 'nf');
+    if (n.ev) nf.appendChild(iconoCal());
+    if (n.fecha) nf.appendChild(document.createTextNode(textoFecha(n.fecha)));
+    e.appendChild(nf);
+  }
   e.appendChild(el('span', 'tx', n.texto));
   if (n.pos) {
-    e.classList.add('libre');
     e.style.left = n.pos.x + 'px';
     e.style.top = n.pos.y + 'px';
+  } else if (i === 0) {
+    e.classList.add('slot');
+  } else {
+    e.style.left = (i % 2 ? 14 : -2) + 'px';
+    e.style.top = (CARD_H - 6 + (i - 1) * 56) + 'px';
   }
   if (S.editor) arrastrarNota(e, n, t, c);
   return e;
@@ -362,15 +389,15 @@ function arrastrarNota(e, n, t, c) {
       dragNota = true;
       d.ox = e.offsetLeft;
       d.oy = e.offsetTop;
-      e.classList.add('libre', 'arr');
+      e.classList.remove('slot');
+      e.classList.add('arr');
       c.classList.add('conlibres');
-      c.appendChild(e);
       e.style.left = d.ox + 'px';
       e.style.top = d.oy + 'px';
     }
-    // Siempre queda pegada a su tarjeta: puede salir un poco por los lados, pero no alejarse.
-    d.x = limitar(d.ox + dx, -90, c.offsetWidth - 40);
-    d.y = limitar(d.oy + dy, -20, c.offsetHeight - 26);
+    // Siempre queda cerca de su tarjeta: puede salir por los lados o colgar debajo, pero no alejarse.
+    d.x = limitar(d.ox + dx, -100, c.offsetWidth - 30);
+    d.y = limitar(d.oy + dy, -40, c.offsetHeight + 160);
     e.style.left = d.x + 'px';
     e.style.top = d.y + 'px';
   });
@@ -418,15 +445,8 @@ function crearCard(t) {
   c.appendChild(el('p', 't', t.titulo));
   if (t.fecha) c.appendChild(el('p', 'f', textoFecha(t.fecha)));
   t.notas = leerNotas(t.detalle);
-  var nts = el('div', 'nts');
-  var sueltas = [];
-  t.notas.forEach(function (n) {
-    var e = crearNota(t, c, n);
-    if (n.pos) sueltas.push(e); else nts.appendChild(e);
-  });
-  c.appendChild(nts);
-  sueltas.forEach(function (e) { c.appendChild(e); });
-  if (sueltas.length) c.classList.add('conlibres');
+  t.notas.forEach(function (n, i) { c.appendChild(crearNota(t, c, n, i)); });
+  if (t.notas.length > 1 || t.notas.some(function (n) { return n.pos; })) c.classList.add('conlibres');
   c.appendChild(el('div', 'stp', 'LISTO'));
 
   if (S.editor) {
@@ -458,8 +478,9 @@ function activarArrastre(c, t, alClic, alGuardar) {
     if (!drag.moved && Math.abs(dx) + Math.abs(dy) < 5) return;
     drag.moved = true;
     c.classList.add('drag');
-    t.x = Math.round(Math.min(BW - 150, Math.max(0, drag.ox + dx)));
-    t.y = Math.round(Math.max(10, drag.oy + dy));
+    // Puede sobresalir un poco del corcho para no cortarse en las esquinas.
+    t.x = Math.round(Math.min(BW - c.offsetWidth + 26, Math.max(-26, drag.ox + dx)));
+    t.y = Math.round(Math.max(-20, drag.oy + dy));
     c.style.left = t.x + 'px';
     c.style.top = t.y + 'px';
     dibujarHilos();
@@ -589,6 +610,7 @@ function agregarNota(n) {
   var fila = el('div', 'nrow');
   if (n && n.ok) fila.dataset.ok = '1';
   if (n && n.pos) fila.dataset.pos = n.pos.x + ',' + n.pos.y;
+  if (n && n.ev) fila.dataset.ev = n.ev;
   var r1 = el('div', 'nr1');
   var d = document.createElement('input');
   d.type = 'date'; d.className = 'n_f'; d.setAttribute('aria-label', 'Fecha de la nota');
@@ -605,8 +627,102 @@ function agregarNota(n) {
   t.type = 'text'; t.className = 'n_t'; t.maxLength = 140; t.placeholder = 'Ej: Cita de Juan en la sastrería';
   t.value = n ? n.texto : '';
   r2.appendChild(t);
-  fila.appendChild(r1); fila.appendChild(r2);
+  var r3 = el('div', 'nr3');
+  var bcal = el('button', 'sec chico', 'Agendar en Google Calendar');
+  bcal.type = 'button';
+  var est = el('span', 'cal-s');
+  var panel = el('div', 'cal');
+  panel.hidden = true;
+  bcal.onclick = function () { abrirPanelCal(fila, panel); };
+  r3.appendChild(bcal); r3.appendChild(est);
+  fila.estadoCal = function () { est.textContent = fila.dataset.ev ? 'Ya agendada en Calendar' : ''; };
+  fila.estadoCal();
+  fila.appendChild(r1); fila.appendChild(r2); fila.appendChild(r3); fila.appendChild(panel);
   $('f_notas').appendChild(fila);
+}
+
+function cargarPersonas() {
+  if (S.personas) return Promise.resolve(S.personas);
+  return api('personas').then(function (l) { S.personas = l; return l; });
+}
+
+/** Panel para crear un evento en Google Calendar e invitar a las personas elegidas de la hoja Personas. */
+function abrirPanelCal(fila, panel) {
+  panel.hidden = !panel.hidden;
+  if (panel.hidden || panel.dataset.listo) return;
+  panel.dataset.listo = '1';
+
+  var dur = document.createElement('select');
+  [[30, '30 minutos'], [60, '1 hora'], [90, '1 hora y media'], [120, '2 horas'], [180, '3 horas']].forEach(function (o) {
+    var op = document.createElement('option');
+    op.value = o[0]; op.textContent = o[1];
+    dur.appendChild(op);
+  });
+  dur.value = '60';
+  var lugar = document.createElement('input');
+  lugar.type = 'text'; lugar.maxLength = 150; lugar.placeholder = 'Lugar (opcional)';
+  var lista = el('div', 'inv', 'Cargando personas...');
+  var err = el('p', 'err');
+  var crear = el('button', 'btn dark chico', 'Crear evento e invitar');
+  crear.type = 'button';
+  var todos = el('button', 'sec chico', 'Marcar a todos');
+  todos.type = 'button';
+
+  panel.appendChild(el('p', 'lb', 'Duración (si la nota tiene hora; sin hora es de todo el día)'));
+  panel.appendChild(dur);
+  panel.appendChild(lugar);
+  panel.appendChild(el('p', 'lb', 'Invitar a'));
+  panel.appendChild(lista);
+  var fin = el('div', 'fh2');
+  fin.appendChild(todos); fin.appendChild(crear);
+  panel.appendChild(fin);
+  panel.appendChild(err);
+
+  cargarPersonas().then(function (gente) {
+    lista.textContent = '';
+    if (!gente.length) { lista.textContent = 'No hay personas con correo en la hoja Personas.'; return; }
+    gente.forEach(function (p) {
+      var l = el('label', 'chk');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.value = p.correo;
+      l.appendChild(cb);
+      l.appendChild(document.createTextNode(' ' + p.nombre + (p.rol === 'admin' ? ' (admin)' : '')));
+      lista.appendChild(l);
+    });
+  }).catch(function (e) { lista.textContent = 'No se pudo cargar la lista: ' + e.message; });
+
+  todos.onclick = function () {
+    var cbs = lista.querySelectorAll('input[type=checkbox]');
+    var marcar = Array.prototype.some.call(cbs, function (c) { return !c.checked; });
+    Array.prototype.forEach.call(cbs, function (c) { c.checked = marcar; });
+  };
+
+  crear.onclick = function () {
+    err.textContent = '';
+    var f = fila.querySelector('.n_f').value, h = fila.querySelector('.n_h').value;
+    if (!f) { err.textContent = 'Primero elige la fecha de la nota.'; return; }
+    if (fila.dataset.ev && !confirm('Esta nota ya tiene un evento. ¿Crear otro?')) return;
+    var texto = fila.querySelector('.n_t').value.trim();
+    var tarea = $('f_titulo').value.trim() || 'Wedding Plan';
+    var inv = Array.prototype.map.call(lista.querySelectorAll('input:checked'), function (c) { return c.value; });
+    crear.disabled = true;
+    api('agendar', {
+      titulo: tarea + (texto ? ': ' + texto : ''),
+      fecha: f + (h ? ' ' + h : ''),
+      minutos: +dur.value,
+      lugar: lugar.value,
+      invitados: inv,
+      descripcion: 'Wedding Plan - ' + tarea
+    }).then(function (r) {
+      fila.dataset.ev = r.id;
+      fila.estadoCal();
+      toast('Evento creado' + (r.invitados ? ' e invitaciones enviadas (' + r.invitados + ')' : ''));
+      $('b_save').click();
+    }).catch(function (e) {
+      crear.disabled = false;
+      err.textContent = e.message;
+    });
+  };
 }
 
 function juntarNotas() {
@@ -616,7 +732,7 @@ function juntarNotas() {
     var t = fila.querySelector('.n_t').value.replace(/[|\r\n]+/g, ' ').trim();
     if (!f && !t) return;
     var pp = fila.dataset.pos ? fila.dataset.pos.split(',') : null;
-    lineas.push(lineaNota({ ok: !!fila.dataset.ok, pos: pp ? { x: +pp[0], y: +pp[1] } : null, fecha: f ? f + (h ? ' ' + h : '') : '', texto: t }));
+    lineas.push(lineaNota({ ev: fila.dataset.ev || '', ok: !!fila.dataset.ok, pos: pp ? { x: +pp[0], y: +pp[1] } : null, fecha: f ? f + (h ? ' ' + h : '') : '', texto: t }));
   });
   return lineas.join('\n');
 }
@@ -638,6 +754,7 @@ function abrirDialogo(t) {
   lista.forEach(function (n) { agregarNota(n); });
   if (!lista.length) agregarNota(null);
   $('f_ajuste').value = t && t.ajuste ? t.ajuste : 'cubrir';
+  if (S.editor && !DEMO) cargarPersonas().catch(function () {});
   $('f_imagen').value = t ? t.imagenOriginal : '';
   $('f_escena').value = t ? t.escena : 'generico';
   $('f_conecta').value = t ? t.conecta_con : '';
@@ -690,7 +807,7 @@ $('frm').onsubmit = function (ev) {
     escena: $('f_escena').value,
     conecta_con: $('f_conecta').value,
     x: 20 + (n % 3) * 235,
-    y: 28 + Math.floor(n / 3) * 236
+    y: 28 + Math.floor(n / 3) * 300
   };
   $('b_save').disabled = true;
   api('guardar', { tarea: obj }).then(function (g) {

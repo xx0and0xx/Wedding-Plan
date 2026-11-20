@@ -46,6 +46,8 @@ function manejar_(p) {
     case 'entrar': return entrar_(p.codigo, p.correo);
     case 'estado': return cambiarEstado(acceso, p.id, p.estado);
     case 'notas': return guardarNotas(acceso, p.id, p.detalle);
+    case 'personas': return listarPersonas_(acceso);
+    case 'agendar': return agendarEvento(acceso, p);
     case 'mover': return moverTarea(acceso, p.id, p.x, p.y);
     case 'plano': return moverPlano(acceso, p.x, p.y);
     case 'guardar': return guardarTarea(acceso, p.tarea);
@@ -69,7 +71,7 @@ function getTablero(acceso) {
     rol: quien ? quien.rol : '',
     titulo: leerConfig_('titulo') || 'Wedding Plan',
     fechaBoda: fechaConfig_('fecha_boda'),
-    plano: { x: numero_(leerConfig_('plano_x'), 20, 0, 5000), y: numero_(leerConfig_('plano_y'), 320, 0, 5000) }
+    plano: { x: numero_(leerConfig_('plano_x'), 20, -100, 5000), y: numero_(leerConfig_('plano_y'), 320, -100, 5000) }
   };
 }
 
@@ -82,15 +84,68 @@ function cambiarEstado(acceso, id, estado) {
 
 function moverTarea(acceso, id, x, y) {
   exigirEditor_(acceso);
-  actualizarCampos_(id, { x: numero_(x, 20, 0, 5000), y: numero_(y, 20, 0, 5000) });
+  actualizarCampos_(id, { x: numero_(x, 20, -100, 5000), y: numero_(y, 20, -100, 5000) });
   return true;
 }
 
 function moverPlano(acceso, x, y) {
   exigirEditor_(acceso);
-  escribirConfig_('plano_x', numero_(x, 20, 0, 5000));
-  escribirConfig_('plano_y', numero_(y, 320, 0, 5000));
+  escribirConfig_('plano_x', numero_(x, 20, -100, 5000));
+  escribirConfig_('plano_y', numero_(y, 320, -100, 5000));
   return true;
+}
+
+/** Lista de personas para elegir invitados. Solo la ven los administradores (tiene correos). */
+function listarPersonas_(acceso) {
+  exigirEditor_(acceso);
+  return leerPersonas_().map(function (p) { return { nombre: p.nombre, correo: p.correo, rol: p.rol }; });
+}
+
+/**
+ * Crea un evento en el Google Calendar de quien publicó el Apps Script y manda la invitación
+ * a las personas elegidas. Solo se puede invitar a correos que estén en la pestaña Personas.
+ * fecha: "AAAA-MM-DD" (todo el día) o "AAAA-MM-DD HH:MM" (hora de Colombia).
+ */
+function agendarEvento(acceso, p) {
+  exigirEditor_(acceso);
+  var quien = quien_(acceso);
+  var titulo = limpiar_(p && p.titulo, 150);
+  if (!titulo) throw new Error('Falta el título del evento.');
+  var m = /^(\d{4}-\d{2}-\d{2})(?: (\d{2}:\d{2}))?$/.exec(String((p && p.fecha) || ''));
+  if (!m) throw new Error('Elige primero la fecha de la nota en el calendario.');
+
+  var permitidos = {};
+  leerPersonas_().forEach(function (x) { permitidos[x.correo] = true; });
+  var correos = [];
+  (Array.isArray(p.invitados) ? p.invitados : []).forEach(function (c) {
+    c = String(c || '').trim().toLowerCase();
+    if (permitidos[c] && correos.indexOf(c) < 0 && correos.length < 30) correos.push(c);
+  });
+
+  var opciones = {
+    description: limpiar_(p.descripcion, 300) + (quien ? '\nAgendado por ' + quien.nombre + ' desde Wedding Plan.' : ''),
+    sendInvitations: true
+  };
+  if (correos.length) opciones.guests = correos.join(',');
+  var lugar = limpiar_(p.lugar, 150);
+  if (lugar) opciones.location = lugar;
+
+  var cal = CalendarApp.getDefaultCalendar();
+  var ev;
+  if (m[2]) {
+    var inicio = Utilities.parseDate(m[1] + ' ' + m[2], 'America/Bogota', 'yyyy-MM-dd HH:mm');
+    var minutos = [30, 60, 90, 120, 180].indexOf(Number(p.minutos)) >= 0 ? Number(p.minutos) : 60;
+    ev = cal.createEvent(titulo, inicio, new Date(inicio.getTime() + minutos * 60000), opciones);
+  } else {
+    ev = cal.createAllDayEvent(titulo, Utilities.parseDate(m[1] + ' 00:00', 'America/Bogota', 'yyyy-MM-dd HH:mm'), opciones);
+  }
+  return { id: ev.getId(), invitados: correos.length };
+}
+
+/** Pide el permiso de Google Calendar la primera vez (menú Tablero > Autorizar Google Calendar). */
+function autorizarCalendario() {
+  var nombre = CalendarApp.getDefaultCalendar().getName();
+  SpreadsheetApp.getActive().toast('Listo: Calendar autorizado (' + nombre + '). Ahora publica una nueva versión del Apps Script.', 'Tablero', 10);
 }
 
 /** Guarda solo las notas de una tarea (marcar una nota como hecha o moverla). */
@@ -136,8 +191,8 @@ function guardarTarea(acceso, t) {
     } else {
       registro.id = maxId + 1;
       registro.estado = 'pendiente';
-      registro.x = numero_(t.x, 20, 0, 5000);
-      registro.y = numero_(t.y, 20, 0, 5000);
+      registro.x = numero_(t.x, 20, -100, 5000);
+      registro.y = numero_(t.y, 20, -100, 5000);
       registro.rotacion = Math.round((Math.random() * 5 - 2.5) * 10) / 10;
     }
     Object.keys(datos).forEach(function (k) { registro[k] = datos[k]; });
@@ -212,8 +267,8 @@ function normalizar_(o) {
     imagen: urlImagen_(o.imagen),
     escena: ESCENAS.indexOf(o.escena) >= 0 ? o.escena : 'generico',
     estado: String(o.estado).toLowerCase() === 'completado' ? 'completado' : 'pendiente',
-    x: numero_(o.x, 20, 0, 5000),
-    y: numero_(o.y, 20, 0, 5000),
+    x: numero_(o.x, 20, -100, 5000),
+    y: numero_(o.y, 20, -100, 5000),
     rotacion: numero_(o.rotacion, 0, -10, 10),
     conecta_con: String(o.conecta_con || ''),
     ajuste: AJUSTES.indexOf(o.ajuste) >= 0 ? o.ajuste : 'cubrir'
@@ -472,6 +527,7 @@ function urlImagen_(v) {
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Tablero')
     .addItem('Preparar o actualizar hojas', 'setup')
+    .addItem('Autorizar Google Calendar', 'autorizarCalendario')
     .addToUi();
 }
 
@@ -485,8 +541,8 @@ function setup() {
       [1, 'Trajes de los caballeros de honor', 'Novio', '', 'Agendar citas de prueba', '', 'traje', 'pendiente', 20, 28, -2, ''],
       [2, 'Escoger lugar de la despedida', 'Padrino', '', 'Playa u otras opciones por definir', '', 'playa', 'pendiente', 255, 22, 2, '3'],
       [3, 'Definir fecha y días del viaje', 'Novio y padrino', '', 'Cuántos días y qué fechas', '', 'calendario', 'pendiente', 490, 34, -1.5, '4,5'],
-      [4, 'Comprar tiquetes', 'Padrino', '', 'Cuando esté la fecha definida', '', 'tiquetes', 'pendiente', 255, 262, -2, ''],
-      [5, 'Reservar habitaciones', 'Novio', '', 'Con fecha y lugar definidos', '', 'habitacion', 'pendiente', 490, 268, 2.5, '']
+      [4, 'Comprar tiquetes', 'Padrino', '', 'Cuando esté la fecha definida', '', 'tiquetes', 'pendiente', 255, 300, -2, ''],
+      [5, 'Reservar habitaciones', 'Novio', '', 'Con fecha y lugar definidos', '', 'habitacion', 'pendiente', 490, 306, 2.5, '']
     ];
     h.getRange(1, 1, 1, COLUMNAS.length).setValues([COLUMNAS]).setFontWeight('bold');
     h.setFrozenRows(1);

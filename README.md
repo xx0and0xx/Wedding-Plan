@@ -112,6 +112,22 @@ Con `API_URL` vacío, la página abre en modo demostración con datos de ejemplo
 
 Como las tarjetas con muchas notas crecen hacia abajo, arrastra el papel azul o las tarjetas de abajo si se tapan entre sí.
 
+## Tamaño de las tarjetas y notas
+
+Todas las tarjetas tienen el mismo tamaño fijo. Debajo del título hay un lugar para la primera nota; las demás cuelgan debajo de la tarjeta hasta que un administrador las arrastre. Mover una nota nunca cambia el tamaño de la tarjeta. Las tarjetas y las notas pueden sobresalir un poco del corcho, para que no se corten en las esquinas.
+
+## Agendar en Google Calendar
+
+Dentro del formulario de una tarea, cada nota tiene el botón **Agendar en Google Calendar**. Se elige la duración, el lugar (opcional) y las personas a invitar, que salen de la pestaña `Personas` (por ejemplo el novio y los caballeros de honor que corresponden a esa cita). Al pulsar "Crear evento e invitar":
+
+- El evento se crea en el Google Calendar de la cuenta que publicó el Apps Script (la del padrino) y Google envía la invitación por correo a cada invitado.
+- Si la nota tiene hora, el evento dura lo elegido (hora de Colombia); si solo tiene fecha, es de todo el día.
+- Solo se puede invitar a correos que estén en la pestaña `Personas`. Solo los administradores ven esa lista.
+- La nota queda con un icono de calendario y el texto "Ya agendada en Calendar".
+- Si después cambias la fecha de la nota, el evento no se actualiza solo: edítalo o bórralo en Google Calendar. Si pulsas de nuevo "Agendar", se crea otro evento.
+
+**Una sola vez:** en el Sheets, menú `Tablero` > `Autorizar Google Calendar` y acepta el permiso. Luego publica una nueva versión del Apps Script (Implementar > Administrar implementaciones > Editar > Nueva versión). Sin esos dos pasos, el botón da error de permisos.
+
 ## Si no ves los cambios
 
 El navegador guarda copias de los archivos. Tras un cambio, haz una recarga forzada (`Ctrl + Shift + R`). Para que se actualice solo, sube el número `?v=` de los archivos en `index.html` cuando cambies `style.css` o `app.js`. `config.js` no lo necesita.
