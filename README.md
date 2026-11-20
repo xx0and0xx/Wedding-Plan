@@ -100,6 +100,15 @@ Cada cambio que se guarda (commit) en GitHub se publica solo en un par de minuto
 
 Con `API_URL` vacío, la página abre en modo demostración con datos de ejemplo (no se guardan). Para verla en el computador: `python3 -m http.server` dentro de esta carpeta y abrir `http://localhost:8000`.
 
+## Notas, fechas e imagen de cada tarea
+
+- **Fecha o cita:** el formulario abre un calendario (y una hora opcional). Se guarda como `2026-12-05 15:00` y se muestra como "sáb, 5 dic, 3:00 p. m.". Si una tarea tenía una fecha escrita a mano, se conserva hasta que elijas una del calendario o pulses "Quitar".
+- **Notas:** cada tarea puede tener varias (hasta 10), cada una con su propia fecha y hora opcionales. En el Sheets quedan en la columna `detalle`, una por línea, con el formato `2026-12-05 15:00|texto` (la fecha es opcional). Si escribes una nota a mano en esa celda, aparece como nota sin fecha.
+- **Cómo se acomoda la imagen:** columna `ajuste` (la agrega `setup` sola). Opciones: `cubrir` (llena el cuadro y recorta los bordes), `arriba` o `abajo` (llena el cuadro, mostrando esa parte) y `completa` (se ve entera, sin recortar). Se elige en el formulario, en "Cómo se acomoda la imagen".
+- **Título del tablero:** celda `titulo` de la hoja `Config` (ahora "Wedding Plan").
+
+Como las tarjetas con muchas notas crecen hacia abajo, arrastra el papel azul o las tarjetas de abajo si se tapan entre sí.
+
 ## Si no ves los cambios
 
 El navegador guarda copias de los archivos. Tras un cambio, haz una recarga forzada (`Ctrl + Shift + R`). Para que se actualice solo, sube el número `?v=` de los archivos en `index.html` cuando cambies `style.css` o `app.js`. `config.js` no lo necesita.

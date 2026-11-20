@@ -12,7 +12,8 @@
 
 var HOJA = 'Tareas';
 var CFG = 'Config';
-var COLUMNAS = ['id', 'titulo', 'responsable', 'fecha', 'detalle', 'imagen', 'escena', 'estado', 'x', 'y', 'rotacion', 'conecta_con'];
+var COLUMNAS = ['id', 'titulo', 'responsable', 'fecha', 'detalle', 'imagen', 'escena', 'estado', 'x', 'y', 'rotacion', 'conecta_con', 'ajuste'];
+var AJUSTES = ['cubrir', 'arriba', 'abajo', 'completa'];
 var ESCENAS = ['traje', 'playa', 'calendario', 'tiquetes', 'habitacion', 'generico'];
 
 /* ---------- Puntos de entrada web ---------- */
@@ -65,7 +66,7 @@ function getTablero(acceso) {
     editor: !!quien && quien.rol === 'admin',
     usuario: quien ? quien.nombre : '',
     rol: quien ? quien.rol : '',
-    titulo: leerConfig_('titulo') || 'Tablero de la boda',
+    titulo: leerConfig_('titulo') || 'Wedding Plan',
     fechaBoda: fechaConfig_('fecha_boda'),
     plano: { x: numero_(leerConfig_('plano_x'), 20, 0, 5000), y: numero_(leerConfig_('plano_y'), 320, 0, 5000) }
   };
@@ -100,10 +101,11 @@ function guardarTarea(acceso, t) {
     titulo: titulo,
     responsable: limpiar_(t.responsable, 80),
     fecha: limpiar_(t.fecha, 80),
-    detalle: limpiar_(t.detalle, 400),
+    detalle: limpiar_(t.detalle, 900),
     imagen: limpiar_(t.imagen, 500),
     escena: ESCENAS.indexOf(t.escena) >= 0 ? t.escena : 'generico',
-    conecta_con: limpiar_(t.conecta_con, 60)
+    conecta_con: limpiar_(t.conecta_con, 60),
+    ajuste: AJUSTES.indexOf(t.ajuste) >= 0 ? t.ajuste : 'cubrir'
   };
 
   var lock = LockService.getScriptLock();
@@ -206,7 +208,8 @@ function normalizar_(o) {
     x: numero_(o.x, 20, 0, 5000),
     y: numero_(o.y, 20, 0, 5000),
     rotacion: numero_(o.rotacion, 0, -10, 10),
-    conecta_con: String(o.conecta_con || '')
+    conecta_con: String(o.conecta_con || ''),
+    ajuste: AJUSTES.indexOf(o.ajuste) >= 0 ? o.ajuste : 'cubrir'
   };
 }
 
@@ -433,7 +436,7 @@ function numero_(v, porDefecto, min, max) {
 function textoFecha_(v) {
   if (v instanceof Date) {
     var conHora = v.getHours() !== 0 || v.getMinutes() !== 0;
-    return Utilities.formatDate(v, 'America/Bogota', conHora ? 'd MMM yyyy, h:mm a' : 'd MMM yyyy');
+    return Utilities.formatDate(v, 'America/Bogota', conHora ? 'yyyy-MM-dd HH:mm' : 'yyyy-MM-dd');
   }
   return String(v || '');
 }
@@ -481,7 +484,7 @@ function setup() {
     h.getRange(1, 1, 1, COLUMNAS.length).setValues([COLUMNAS]).setFontWeight('bold');
     h.setFrozenRows(1);
     h.getRange('D:D').setNumberFormat('@');
-    h.getRange(2, 1, ejemplo.length, COLUMNAS.length).setValues(ejemplo);
+    h.getRange(2, 1, ejemplo.length, COLUMNAS.length).setValues(ejemplo.map(function (f) { return f.concat(['cubrir']); }));
     h.getRange('H2:H200').setDataValidation(
       SpreadsheetApp.newDataValidation().requireValueInList(['pendiente', 'completado'], true).build());
     h.getRange('G2:G200').setDataValidation(
@@ -491,10 +494,20 @@ function setup() {
     h.setColumnWidths(5, 2, 220);
   }
 
+  // Hojas de una versión anterior: agrega la columna "ajuste" (cómo se acomoda la foto) si falta.
+  var encabezado = h.getDataRange().getValues()[0].map(String);
+  if (encabezado.indexOf('ajuste') < 0) {
+    h.getRange(1, encabezado.length + 1).setValue('ajuste');
+    h.getRange(1, encabezado.length + 1).setFontWeight('bold');
+    encabezado.push('ajuste');
+  }
+  h.getRange(2, encabezado.indexOf('ajuste') + 1, 199, 1).setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInList(AJUSTES, true).build());
+
   var c = ss.getSheetByName(CFG) || ss.insertSheet(CFG);
   if (c.getLastRow() === 0) {
     c.getRange(1, 1, 5, 2).setValues([
-      ['titulo', 'Despedida de solteros'],
+      ['titulo', 'Wedding Plan'],
       ['clave_edicion', Utilities.getUuid().replace(/-/g, '').slice(0, 10)],
       ['fecha_boda', ''],
       ['plano_x', 20],
@@ -504,6 +517,9 @@ function setup() {
     c.setColumnWidths(1, 1, 140);
     c.setColumnWidths(2, 1, 260);
   }
+
+  var tituloActual = String(leerConfig_('titulo')).trim();
+  if (!tituloActual || tituloActual === 'Despedida de solteros') escribirConfig_('titulo', 'Wedding Plan');
 
   if (!String(leerConfig_('codigo_acceso')).trim()) {
     escribirConfig_('codigo_acceso', '150427');

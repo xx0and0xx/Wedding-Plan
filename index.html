@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tablero de la boda</title>
+<title>Wedding Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=5">
+<link rel="stylesheet" href="css/style.css?v=6">
 </head>
 <body>
 <header>
@@ -22,8 +22,31 @@
 <div id="toast" role="status"></div>
 
 <div id="lock" role="dialog" aria-modal="true" aria-labelledby="lock_t" hidden>
+  <div class="bv" aria-hidden="true"><svg viewBox="0 0 800 800" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<linearGradient id="vg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5fb283"/><stop offset=".5" stop-color="#2c6e49"/><stop offset="1" stop-color="#143824"/></linearGradient>
+<radialGradient id="vg1" cx="40%" cy="35%" r="75%"><stop offset="0" stop-color="#3f8a60"/><stop offset="1" stop-color="#143824"/></radialGradient>
+<radialGradient id="vb" cx="35%" cy="30%" r="70%"><stop offset="0" stop-color="#d8efe2"/><stop offset="1" stop-color="#2a6a47"/></radialGradient>
+<g id="bt"><circle cx="400" cy="38" r="11" fill="#0d261a" opacity=".55"/><circle cx="400" cy="36" r="9" fill="url(#vb)"/></g>
+<filter id="vn"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="5"/><feColorMatrix type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 .5 0"/></filter>
+</defs>
+<circle cx="400" cy="400" r="392" fill="url(#vg2)" stroke="#0a1f14" stroke-width="8"/>
+<circle cx="400" cy="400" r="392" filter="url(#vn)" opacity=".35"/>
+<circle cx="400" cy="400" r="332" fill="none" stroke="#0a1f14" stroke-width="4" opacity=".55"/>
+<circle cx="400" cy="400" r="326" fill="none" stroke="#7fc79e" stroke-width="2" opacity=".35"/>
+<use href="#bt" transform="rotate(0 400 400)"/><use href="#bt" transform="rotate(15 400 400)"/><use href="#bt" transform="rotate(30 400 400)"/><use href="#bt" transform="rotate(45 400 400)"/><use href="#bt" transform="rotate(60 400 400)"/><use href="#bt" transform="rotate(75 400 400)"/><use href="#bt" transform="rotate(90 400 400)"/><use href="#bt" transform="rotate(105 400 400)"/><use href="#bt" transform="rotate(120 400 400)"/><use href="#bt" transform="rotate(135 400 400)"/><use href="#bt" transform="rotate(150 400 400)"/><use href="#bt" transform="rotate(165 400 400)"/><use href="#bt" transform="rotate(180 400 400)"/><use href="#bt" transform="rotate(195 400 400)"/><use href="#bt" transform="rotate(210 400 400)"/><use href="#bt" transform="rotate(225 400 400)"/><use href="#bt" transform="rotate(240 400 400)"/><use href="#bt" transform="rotate(255 400 400)"/><use href="#bt" transform="rotate(270 400 400)"/><use href="#bt" transform="rotate(285 400 400)"/><use href="#bt" transform="rotate(300 400 400)"/><use href="#bt" transform="rotate(315 400 400)"/><use href="#bt" transform="rotate(330 400 400)"/><use href="#bt" transform="rotate(345 400 400)"/>
+<circle cx="400" cy="400" r="290" fill="url(#vg1)" stroke="#0a1f14" stroke-width="5"/>
+<circle cx="400" cy="400" r="240" fill="none" stroke="#0a1f14" stroke-width="3" opacity=".5"/>
+<g fill="url(#vg2)" stroke="#0a1f14" stroke-width="4">
+<rect x="372" y="150" width="56" height="250" rx="14" transform="rotate(0 400 400)"/>
+<rect x="372" y="150" width="56" height="250" rx="14" transform="rotate(120 400 400)"/>
+<rect x="372" y="150" width="56" height="250" rx="14" transform="rotate(240 400 400)"/>
+</g>
+<circle cx="400" cy="400" r="86" fill="url(#vg2)" stroke="#0a1f14" stroke-width="6"/>
+<circle cx="400" cy="400" r="40" fill="url(#vb)" stroke="#0a1f14" stroke-width="4"/>
+</svg></div>
   <div class="lk">
-    <h2 id="lock_t">Caja fuerte del plan</h2>
+    <h2 id="lock_t">Wedding Plan</h2>
     <div class="safe">
       <div class="leds">
         <span><i id="led_r" class="on"></i>LISTO</span>
@@ -34,13 +57,12 @@
       <p id="lock_msg" role="status"></p>
       <div id="lock_pad"></div>
       <form id="lock_mail" hidden>
-        <label for="lock_correo">Código correcto. Ahora escribe tu correo</label>
+        <label for="lock_correo">Escribe tu correo</label>
         <input id="lock_correo" type="email" autocomplete="email" inputmode="email" placeholder="correo@ejemplo.com" required>
         <button type="submit" class="ent">Abrir</button>
         <button type="button" id="lock_atras" class="atras">Volver al código</button>
       </form>
     </div>
-    <p class="lk-h">El código es la fecha de la boda. Luego escribe el correo con el que te registraron: los administradores editan y los demás solo miran el tablero.</p>
   </div>
 </div>
 
@@ -50,9 +72,25 @@
     <label>Título<input id="f_titulo" maxlength="120"></label>
     <p class="err" id="err"></p>
     <label>Responsable<input id="f_responsable" maxlength="80"></label>
-    <label>Fecha o cita<input id="f_fecha" maxlength="80" placeholder="12 mar, 3:00 pm"></label>
-    <label>Detalle (nota amarilla)<textarea id="f_detalle" rows="2" maxlength="400"></textarea></label>
+    <p class="lb">Fecha o cita</p>
+    <div class="fh">
+      <input type="date" id="f_fecha" aria-label="Fecha">
+      <input type="time" id="f_hora" aria-label="Hora (opcional)">
+      <button type="button" class="sec" id="b_qfecha">Quitar</button>
+    </div>
+    <p class="hint" id="f_fvieja"></p>
+    <p class="lb">Notas (cada una puede llevar su fecha)</p>
+    <div id="f_notas"></div>
+    <button type="button" class="sec" id="b_nota">+ Agregar nota</button>
     <label>Imagen (link https, link de Drive o ruta como img/playa.jpg)<input id="f_imagen" maxlength="500"></label>
+    <label>Cómo se acomoda la imagen
+      <select id="f_ajuste">
+        <option value="cubrir">Llenar el cuadro (recorta los bordes)</option>
+        <option value="arriba">Llenar el cuadro, mostrando la parte de arriba</option>
+        <option value="abajo">Llenar el cuadro, mostrando la parte de abajo</option>
+        <option value="completa">Mostrar la imagen completa</option>
+      </select>
+    </label>
     <label>Dibujo si no hay imagen<select id="f_escena"></select></label>
     <label>Conecta con (números de tarjeta, separados por coma)<input id="f_conecta" maxlength="60" placeholder="3,4"></label>
     <div class="row">
@@ -65,7 +103,7 @@
 </dialog>
 
 <script src="js/config.js"></script>
-<script src="js/escenas.js?v=5"></script>
-<script src="js/app.js?v=5"></script>
+<script src="js/escenas.js?v=6"></script>
+<script src="js/app.js?v=6"></script>
 </body>
 </html>

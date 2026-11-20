@@ -73,10 +73,10 @@ function api(accion, datos) {
 }
 
 /* Modo demostración: datos de ejemplo en memoria, sin backend. */
-var demoPlano = { x: 20, y: 320 };
+var demoPlano = { x: 20, y: 440 };
 var demoAdmin = false, demoUsuario = '';
 var demoTareas = [
-  { id: 1, titulo: 'Trajes de los caballeros de honor', responsable: 'Novio', fecha: '12 mar, 3:00 pm', detalle: 'Prueba en la sastrería', imagenOriginal: '', imagen: '', escena: 'traje', estado: 'pendiente', x: 20, y: 28, rotacion: -2, conecta_con: '' },
+  { id: 1, titulo: 'Trajes de los caballeros de honor', responsable: 'Novio', fecha: '', detalle: '2026-12-05 15:00|Cita 1: Juan y Pedro\n2026-12-06 10:30|Cita 2: Luis\n2026-12-12|Cita 3: Mateo\nLlevar zapatos negros', imagenOriginal: '', imagen: '', escena: 'traje', ajuste: 'cubrir', estado: 'pendiente', x: 20, y: 28, rotacion: -2, conecta_con: '' },
   { id: 2, titulo: 'Escoger lugar de la despedida', responsable: 'Padrino', fecha: '', detalle: 'Playa, ya elegida', imagenOriginal: '', imagen: '', escena: 'playa', estado: 'completado', x: 255, y: 22, rotacion: 2, conecta_con: '3' },
   { id: 3, titulo: 'Definir fecha y días del viaje', responsable: 'Novio y padrino', fecha: '', detalle: '3 días, fecha por definir', imagenOriginal: '', imagen: '', escena: 'calendario', estado: 'pendiente', x: 490, y: 34, rotacion: -1.5, conecta_con: '4,5' },
   { id: 4, titulo: 'Comprar tiquetes', responsable: 'Padrino', fecha: '', detalle: 'Esperan la fecha', imagenOriginal: '', imagen: '', escena: 'tiquetes', estado: 'pendiente', x: 255, y: 262, rotacion: -2, conecta_con: '' },
@@ -89,7 +89,7 @@ function demoPorId(id) {
 function demo(accion, d) {
   var r = null, t;
   if (accion === 'leer') {
-    r = { tareas: JSON.parse(JSON.stringify(demoTareas)), editor: demoAdmin, usuario: demoUsuario, titulo: 'Despedida de solteros (demostración)', fechaBoda: '', plano: JSON.parse(JSON.stringify(demoPlano)) };
+    r = { tareas: JSON.parse(JSON.stringify(demoTareas)), editor: demoAdmin, usuario: demoUsuario, titulo: 'Wedding Plan (demostración)', fechaBoda: '', plano: JSON.parse(JSON.stringify(demoPlano)) };
   } else if (accion === 'entrar') {
     if (d.codigo !== '123456') throw new Error('Código incorrecto.');
     if (!d.correo) {
@@ -111,7 +111,7 @@ function demo(accion, d) {
       t = { id: demoTareas.reduce(function (m, k) { return Math.max(m, k.id); }, 0) + 1, estado: 'pendiente', x: d.tarea.x, y: d.tarea.y, rotacion: 1 };
       demoTareas.push(t);
     }
-    ['titulo', 'responsable', 'fecha', 'detalle', 'escena', 'conecta_con'].forEach(function (k) { t[k] = d.tarea[k]; });
+    ['titulo', 'responsable', 'fecha', 'detalle', 'escena', 'conecta_con', 'ajuste'].forEach(function (k) { t[k] = d.tarea[k]; });
     t.imagenOriginal = d.tarea.imagen;
     t.imagen = /^(https:\/\/|img\/)/.test(d.tarea.imagen) ? d.tarea.imagen : '';
     r = JSON.parse(JSON.stringify(t));
@@ -131,7 +131,7 @@ function cargar() {
       mostrarLock('Tu sesión venció. Escribe el código otra vez.');
     }
     $('aviso').hidden = !DEMO;
-    if (DEMO) $('aviso').textContent = 'Modo demostración: los cambios no se guardan. Código de la demo: 123456; con un correo que contenga "admin" editas, con otro solo miras. Para conectarlo con tu Sheets, pega la URL de Apps Script en js/config.js.';
+    if (DEMO) $('aviso').textContent = 'Modo demostración: los cambios no se guardan. Para conectarlo con tu Sheets, pega la URL de Apps Script en js/config.js.';
     render();
   }).catch(function (e) {
     $('aviso').hidden = false;
@@ -260,6 +260,36 @@ function armarTeclado() {
 
 /* ---------- Tarjetas ---------- */
 
+/* ---------- Fechas y notas ---------- */
+
+var RE_FECHA = /^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2}))?$/;
+
+/** "2026-12-05 15:00" -> "vie, 5 dic, 3:00 p. m."; otro texto se muestra tal cual. */
+function textoFecha(s) {
+  var m = RE_FECHA.exec(String(s || ''));
+  if (!m) return String(s || '');
+  var d = new Date(+m[1], +m[2] - 1, +m[3], m[4] ? +m[4] : 0, m[5] ? +m[5] : 0);
+  var t = d.toLocaleDateString('es-CO', { weekday: 'short', day: 'numeric', month: 'short' });
+  if (m[4]) t += ', ' + d.toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
+  return t;
+}
+
+/** El detalle guarda una nota por línea: "AAAA-MM-DD HH:MM|texto" (la fecha es opcional). */
+function leerNotas(detalle) {
+  var salida = [];
+  String(detalle || '').split('\n').forEach(function (linea) {
+    linea = linea.trim();
+    if (!linea) return;
+    var i = linea.indexOf('|');
+    if (i > 0 && RE_FECHA.test(linea.slice(0, i).trim())) {
+      salida.push({ fecha: linea.slice(0, i).trim(), texto: linea.slice(i + 1).trim() });
+    } else {
+      salida.push({ fecha: '', texto: linea });
+    }
+  });
+  return salida;
+}
+
 function crearCard(t) {
   var c = el('div', 'c' + (t.estado === 'completado' ? ' done' : '') + (S.editor ? ' edit' : ''));
   c.dataset.id = t.id;
@@ -274,7 +304,7 @@ function crearCard(t) {
   ph.innerHTML = ESCENAS[t.escena] || ESCENAS.generico;
   if (t.imagen) {
     var im = new Image();
-    im.className = 'foto';
+    im.className = 'foto aj-' + (t.ajuste || 'cubrir');
     im.alt = '';
     im.referrerPolicy = 'no-referrer';
     im.onerror = function () { im.remove(); };
@@ -285,9 +315,19 @@ function crearCard(t) {
   c.appendChild(ph);
 
   c.appendChild(el('p', 't', t.titulo));
-  if (t.fecha) c.appendChild(el('p', 'f', t.fecha));
+  if (t.fecha) c.appendChild(el('p', 'f', textoFecha(t.fecha)));
   if (t.responsable) c.appendChild(el('p', 'w', t.responsable));
-  if (t.detalle) c.appendChild(el('div', 'nt', t.detalle));
+  var notas = leerNotas(t.detalle);
+  if (notas.length) {
+    var nt = el('div', 'nt');
+    notas.forEach(function (n) {
+      var it = el('div', 'ni');
+      if (n.fecha) it.appendChild(el('span', 'nf', textoFecha(n.fecha)));
+      if (n.texto) it.appendChild(document.createTextNode(n.texto));
+      nt.appendChild(it);
+    });
+    c.appendChild(nt);
+  }
   c.appendChild(el('div', 'stp', 'LISTO'));
 
   if (S.editor) {
@@ -364,7 +404,7 @@ function crearPlano() {
   p.setAttribute('role', 'group');
   p.setAttribute('aria-label', hechas + ' de ' + total + ' pasos completados');
   p.appendChild(el('p', 'k', 'Plano de operación'));
-  p.appendChild(el('p', 'n', S.titulo || 'Tablero'));
+  p.appendChild(el('p', 'n', S.titulo || 'Wedding Plan'));
   p.appendChild(el('p', 'big', hechas + ' de ' + total));
   p.appendChild(el('p', 's', 'pasos completados'));
   var br = el('div', 'br');
@@ -419,8 +459,8 @@ function render() {
   dibujarHilos();
   ajustar();
 
-  $('titulo').textContent = S.titulo || 'Tablero';
-  document.title = S.titulo || 'Tablero';
+  $('titulo').textContent = S.titulo || 'Wedding Plan';
+  document.title = S.titulo || 'Wedding Plan';
   var txt = '';
   if (S.fechaBoda) {
     var dias = Math.ceil((new Date(S.fechaBoda + 'T00:00:00') - new Date()) / 86400000);
@@ -442,6 +482,43 @@ window.addEventListener('resize', ajustar);
 
 /* ---------- Diálogo de edición ---------- */
 
+var fechaVieja = '';
+
+function agregarNota(n) {
+  if ($('f_notas').children.length >= 10) return;
+  var f = RE_FECHA.exec(n ? n.fecha : '');
+  var fila = el('div', 'nrow');
+  var r1 = el('div', 'nr1');
+  var d = document.createElement('input');
+  d.type = 'date'; d.className = 'n_f'; d.setAttribute('aria-label', 'Fecha de la nota');
+  d.value = f ? f[1] + '-' + f[2] + '-' + f[3] : '';
+  var h = document.createElement('input');
+  h.type = 'time'; h.className = 'n_h'; h.setAttribute('aria-label', 'Hora de la nota (opcional)');
+  h.value = f && f[4] ? f[4] + ':' + f[5] : '';
+  var x = el('button', 'x', '×');
+  x.type = 'button'; x.setAttribute('aria-label', 'Quitar nota');
+  x.onclick = function () { fila.remove(); };
+  r1.appendChild(d); r1.appendChild(h); r1.appendChild(x);
+  var r2 = el('div', 'nr2');
+  var t = document.createElement('input');
+  t.type = 'text'; t.className = 'n_t'; t.maxLength = 140; t.placeholder = 'Ej: Cita de Juan en la sastrería';
+  t.value = n ? n.texto : '';
+  r2.appendChild(t);
+  fila.appendChild(r1); fila.appendChild(r2);
+  $('f_notas').appendChild(fila);
+}
+
+function juntarNotas() {
+  var lineas = [];
+  Array.prototype.forEach.call($('f_notas').children, function (fila) {
+    var f = fila.querySelector('.n_f').value, h = fila.querySelector('.n_h').value;
+    var t = fila.querySelector('.n_t').value.replace(/[|\r\n]+/g, ' ').trim();
+    if (!f && !t) return;
+    lineas.push((f ? f + (h ? ' ' + h : '') + '|' : '') + t);
+  });
+  return lineas.join('\n');
+}
+
 function abrirDialogo(t) {
   editando = t;
   confirmarBorrado = false;
@@ -450,8 +527,16 @@ function abrirDialogo(t) {
   $('dtitulo').textContent = t ? 'Editar tarea #' + t.id : 'Nueva tarea';
   $('f_titulo').value = t ? t.titulo : '';
   $('f_responsable').value = t ? t.responsable : '';
-  $('f_fecha').value = t ? t.fecha : '';
-  $('f_detalle').value = t ? t.detalle : '';
+  var mf = RE_FECHA.exec(t ? t.fecha : '');
+  $('f_fecha').value = mf ? mf[1] + '-' + mf[2] + '-' + mf[3] : '';
+  $('f_hora').value = mf && mf[4] ? mf[4] + ':' + mf[5] : '';
+  fechaVieja = (t && t.fecha && !mf) ? t.fecha : '';
+  $('f_fvieja').textContent = fechaVieja ? 'Fecha anterior: ' + fechaVieja + '. Elige una fecha del calendario para cambiarla.' : '';
+  $('f_notas').innerHTML = '';
+  var lista = leerNotas(t ? t.detalle : '');
+  lista.forEach(function (n) { agregarNota(n); });
+  if (!lista.length) agregarNota(null);
+  $('f_ajuste').value = t && t.ajuste ? t.ajuste : 'cubrir';
   $('f_imagen').value = t ? t.imagenOriginal : '';
   $('f_escena').value = t ? t.escena : 'generico';
   $('f_conecta').value = t ? t.conecta_con : '';
@@ -460,6 +545,8 @@ function abrirDialogo(t) {
 }
 
 $('nuevo').onclick = function () { abrirDialogo(null); };
+$('b_nota').onclick = function () { agregarNota(null); };
+$('b_qfecha').onclick = function () { $('f_fecha').value = ''; $('f_hora').value = ''; fechaVieja = ''; $('f_fvieja').textContent = ''; };
 $('b_cancel').onclick = function () { $('dlg').close(); };
 $('f_titulo').oninput = function () { $('err').textContent = ''; };
 $('salir').onclick = function () {
@@ -492,8 +579,9 @@ $('frm').onsubmit = function (ev) {
     id: editando ? editando.id : 0,
     titulo: titulo,
     responsable: $('f_responsable').value,
-    fecha: $('f_fecha').value,
-    detalle: $('f_detalle').value,
+    fecha: $('f_fecha').value ? $('f_fecha').value + ($('f_hora').value ? ' ' + $('f_hora').value : '') : fechaVieja,
+    detalle: juntarNotas(),
+    ajuste: $('f_ajuste').value,
     imagen: $('f_imagen').value,
     escena: $('f_escena').value,
     conecta_con: $('f_conecta').value,
