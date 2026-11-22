@@ -173,3 +173,13 @@ dialog input,dialog textarea,dialog select{display:block;width:100%;margin-top:4
 .lbb{position:absolute;z-index:2;border:0;border-radius:50%;width:46px;height:46px;background:rgba(245,236,220,.92);color:#16271d;font-size:30px;line-height:1;padding:0}
 .lbx{top:14px;right:16px}.lbp{left:12px;top:50%;margin-top:-23px}.lbn{right:12px;top:50%;margin-top:-23px}
 @media (max-width:520px){.gp{padding:22px 14px 36px 52px}.gp:before{left:6px;width:30px}.gp:after{left:44px}.ft{width:min(100%,220px)}}
+
+/* Notas junto a cada foto */
+.gf{flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:34px}
+.fr{display:flex;align-items:flex-start;gap:22px}
+.fr:nth-child(even){flex-direction:row-reverse}
+.fr .ft{flex:0 0 min(48%,250px);width:auto}
+.fn{flex:1;min-width:0;border:0;background:repeating-linear-gradient(transparent 0 27px,#ddd8ca 27px 28px);font-family:'Caveat',cursive;font-size:23px;line-height:28px;text-transform:uppercase;letter-spacing:.03em;color:#1b1b1b;padding:0;margin:6px 0 0;min-height:112px;resize:vertical;white-space:pre-wrap;word-wrap:break-word}
+textarea.fn:focus{outline:2px dashed #185FA5;outline-offset:3px}
+@media (max-width:520px){.fr,.fr:nth-child(even){flex-direction:column;align-items:center}.fr .ft{flex:none;width:min(100%,230px)}.fn{width:100%;flex:none}}
+.fr:nth-child(4n+1) .ft{--r:-2.4deg}.fr:nth-child(4n+2) .ft{--r:2deg}.fr:nth-child(4n+3) .ft{--r:-1deg}.fr:nth-child(4n) .ft{--r:2.8deg}
