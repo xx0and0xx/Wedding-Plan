@@ -12,9 +12,9 @@
 
 var HOJA = 'Tareas';
 var CFG = 'Config';
-var COLUMNAS = ['id', 'titulo', 'responsable', 'fecha', 'detalle', 'imagen', 'escena', 'estado', 'x', 'y', 'rotacion', 'conecta_con', 'ajuste'];
+var COLUMNAS = ['id', 'titulo', 'responsable', 'fecha', 'detalle', 'imagen', 'escena', 'estado', 'x', 'y', 'rotacion', 'conecta_con', 'ajuste', 'enlace'];
 var AJUSTES = ['cubrir', 'arriba', 'abajo', 'completa'];
-var ESCENAS = ['traje', 'playa', 'calendario', 'tiquetes', 'habitacion', 'generico'];
+var ESCENAS = ['traje', 'playa', 'calendario', 'tiquetes', 'habitacion', 'generico', 'carpeta'];
 
 /* ---------- Puntos de entrada web ---------- */
 
@@ -47,6 +47,7 @@ function manejar_(p) {
     case 'estado': return cambiarEstado(acceso, p.id, p.estado);
     case 'notas': return guardarNotas(acceso, p.id, p.detalle);
     case 'personas': return listarPersonas_(acceso);
+    case 'fotos': return fotosDeTarea_(acceso, p.id);
     case 'agendar': return agendarEvento(acceso, p);
     case 'mover': return moverTarea(acceso, p.id, p.x, p.y);
     case 'plano': return moverPlano(acceso, p.x, p.y);
@@ -65,7 +66,11 @@ function json_(obj) {
 function getTablero(acceso) {
   var quien = quien_(acceso);
   return {
-    tareas: leerTareas_(),
+    tareas: leerTareas_().map(function (t) {
+      // Los enlaces de las fotos solo los ven los administradores; el resto recibe las fotos con la acción "fotos".
+      if (!(quien && quien.rol === 'admin')) t.enlace = '';
+      return t;
+    }),
     editor: !!quien && quien.rol === 'admin',
     usuario: quien ? quien.nombre : '',
     rol: quien ? quien.rol : '',
@@ -92,6 +97,83 @@ function moverPlano(acceso, x, y) {
   exigirEditor_(acceso);
   escribirConfig_('plano_x', numero_(x, 20, -100, 5000));
   escribirConfig_('plano_y', numero_(y, 320, -100, 5000));
+  return true;
+}
+
+/* ---------- Galería de fotos (tarjeta "carpeta") ---------- */
+
+var MAX_FOTOS = 80;
+
+function fotoDrive_(id, nombre) {
+  return {
+    id: id,
+    nombre: nombre || '',
+    thumb: 'https://drive.google.com/thumbnail?id=' + id + '&sz=w600',
+    url: 'https://drive.google.com/thumbnail?id=' + id + '&sz=w1600'
+  };
+}
+
+/**
+ * Devuelve las fotos de una tarjeta de tipo carpeta. Cada línea del campo "enlace" puede ser:
+ *  - el enlace de una carpeta de Drive (se listan sus imágenes; las nuevas aparecen solas),
+ *  - el enlace de una foto de Drive,
+ *  - o un enlace https directo a una imagen.
+ * Los enlaces salen de la hoja, nunca del navegador, y solo los ve quien ya entró con el código.
+ */
+function fotosDeTarea_(acceso, id) {
+  if (!quien_(acceso)) throw new Error('Escribe el código de acceso para ver las fotos.');
+  var tarea = null;
+  leerTareas_().forEach(function (t) { if (String(t.id) === String(id)) tarea = t; });
+  if (!tarea || tarea.escena !== 'carpeta') throw new Error('Esa tarjeta no es una carpeta de fotos.');
+
+  var clave = 'fotos_' + tarea.id + '_' + sha256Hex_(tarea.enlace).substring(0, 16);
+  var cache = CacheService.getScriptCache();
+  var guardado = cache.get(clave);
+  if (guardado) { try { return JSON.parse(guardado); } catch (err) { /* se recalcula */ } }
+
+  var fotos = [], avisos = [];
+  String(tarea.enlace).split(/\s+/).forEach(function (linea) {
+    linea = linea.trim();
+    if (!linea || fotos.length >= MAX_FOTOS) return;
+    var carpeta = linea.match(/\/folders\/([\w-]{20,})/);
+    var archivo = linea.match(/\/file\/d\/([\w-]{20,})/) || linea.match(/\/d\/([\w-]{20,})/);
+    var suelto = linea.match(/[?&]id=([\w-]{20,})/) || (/^[\w-]{25,}$/.test(linea) ? [0, linea] : null);
+    if (carpeta) {
+      listarCarpeta_(carpeta[1], fotos, avisos);
+    } else if (archivo) {
+      fotos.push(fotoDrive_(archivo[1], ''));
+    } else if (suelto) {
+      // Un enlace "open?id=" puede ser carpeta o archivo: se prueba primero como carpeta.
+      if (!listarCarpeta_(suelto[1], fotos, null)) fotos.push(fotoDrive_(suelto[1], ''));
+    } else if (/^https:\/\//i.test(linea)) {
+      fotos.push({ id: '', nombre: '', thumb: linea, url: linea });
+    } else {
+      avisos.push('No entendí este enlace: ' + linea.substring(0, 60));
+    }
+  });
+  var r = { fotos: fotos.slice(0, MAX_FOTOS), avisos: avisos };
+  try { cache.put(clave, JSON.stringify(r), 300); } catch (err) { /* demasiado grande: sin caché */ }
+  return r;
+}
+
+/** Agrega las imágenes de una carpeta de Drive. Devuelve false si no se pudo abrir como carpeta. */
+function listarCarpeta_(idCarpeta, fotos, avisos) {
+  var carpeta;
+  try {
+    carpeta = DriveApp.getFolderById(idCarpeta);
+  } catch (err) {
+    if (avisos) avisos.push('No se pudo abrir una carpeta: revisa que el enlace sea correcto y que la cuenta que publicó el Apps Script tenga acceso.');
+    return false;
+  }
+  var lista = [];
+  var it = carpeta.getFiles();
+  while (it.hasNext() && lista.length < 300) {
+    var f = it.next();
+    if (String(f.getMimeType()).indexOf('image/') === 0) lista.push({ id: f.getId(), nombre: f.getName() });
+  }
+  lista.sort(function (a, b) { return a.nombre.localeCompare(b.nombre, 'es', { numeric: true }); });
+  lista.forEach(function (f) { if (fotos.length < MAX_FOTOS) fotos.push(fotoDrive_(f.id, f.nombre)); });
+  if (!lista.length && avisos) avisos.push('La carpeta no tiene imágenes todavía.');
   return true;
 }
 
@@ -142,11 +224,15 @@ function agendarEvento(acceso, p) {
   return { id: ev.getId(), invitados: correos.length };
 }
 
-/** Pide el permiso de Google Calendar la primera vez (menú Tablero > Autorizar Google Calendar). */
-function autorizarCalendario() {
+/** Pide los permisos de Google Calendar y Google Drive (menú Tablero > Autorizar Calendar y Drive). */
+function autorizarPermisos() {
   var nombre = CalendarApp.getDefaultCalendar().getName();
-  SpreadsheetApp.getActive().toast('Listo: Calendar autorizado (' + nombre + '). Ahora publica una nueva versión del Apps Script.', 'Tablero', 10);
+  var carpeta = DriveApp.getRootFolder().getName();
+  SpreadsheetApp.getActive().toast('Listo: Calendar (' + nombre + ') y Drive (' + carpeta + ') autorizados. Ahora publica una nueva versión del Apps Script.', 'Tablero', 10);
 }
+
+/** Se conserva por si ya la tenías en el menú. */
+function autorizarCalendario() { autorizarPermisos(); }
 
 /** Guarda solo las notas de una tarea (marcar una nota como hecha o moverla). */
 function guardarNotas(acceso, id, detalle) {
@@ -167,7 +253,8 @@ function guardarTarea(acceso, t) {
     imagen: limpiar_(t.imagen, 500),
     escena: ESCENAS.indexOf(t.escena) >= 0 ? t.escena : 'generico',
     conecta_con: limpiar_(t.conecta_con, 60),
-    ajuste: AJUSTES.indexOf(t.ajuste) >= 0 ? t.ajuste : 'cubrir'
+    ajuste: AJUSTES.indexOf(t.ajuste) >= 0 ? t.ajuste : 'cubrir',
+    enlace: limpiar_(t.enlace, 1500)
   };
 
   var lock = LockService.getScriptLock();
@@ -271,7 +358,8 @@ function normalizar_(o) {
     y: numero_(o.y, 20, -100, 5000),
     rotacion: numero_(o.rotacion, 0, -10, 10),
     conecta_con: String(o.conecta_con || ''),
-    ajuste: AJUSTES.indexOf(o.ajuste) >= 0 ? o.ajuste : 'cubrir'
+    ajuste: AJUSTES.indexOf(o.ajuste) >= 0 ? o.ajuste : 'cubrir',
+    enlace: String(o.enlace || '')
   };
 }
 
@@ -527,7 +615,7 @@ function urlImagen_(v) {
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('Tablero')
     .addItem('Preparar o actualizar hojas', 'setup')
-    .addItem('Autorizar Google Calendar', 'autorizarCalendario')
+    .addItem('Autorizar Calendar y Drive', 'autorizarPermisos')
     .addToUi();
 }
 
@@ -547,7 +635,7 @@ function setup() {
     h.getRange(1, 1, 1, COLUMNAS.length).setValues([COLUMNAS]).setFontWeight('bold');
     h.setFrozenRows(1);
     h.getRange('D:D').setNumberFormat('@');
-    h.getRange(2, 1, ejemplo.length, COLUMNAS.length).setValues(ejemplo.map(function (f) { return f.concat(['cubrir']); }));
+    h.getRange(2, 1, ejemplo.length, COLUMNAS.length).setValues(ejemplo.map(function (f) { return f.concat(['cubrir', '']); }));
     h.getRange('H2:H200').setDataValidation(
       SpreadsheetApp.newDataValidation().requireValueInList(['pendiente', 'completado'], true).build());
     h.getRange('G2:G200').setDataValidation(
@@ -559,11 +647,13 @@ function setup() {
 
   // Hojas de una versión anterior: agrega la columna "ajuste" (cómo se acomoda la foto) si falta.
   var encabezado = h.getDataRange().getValues()[0].map(String);
-  if (encabezado.indexOf('ajuste') < 0) {
-    h.getRange(1, encabezado.length + 1).setValue('ajuste');
-    h.getRange(1, encabezado.length + 1).setFontWeight('bold');
-    encabezado.push('ajuste');
-  }
+  ['ajuste', 'enlace'].forEach(function (nombre) {
+    if (encabezado.indexOf(nombre) < 0) {
+      h.getRange(1, encabezado.length + 1).setValue(nombre);
+      h.getRange(1, encabezado.length + 1).setFontWeight('bold');
+      encabezado.push(nombre);
+    }
+  });
   h.getRange(2, encabezado.indexOf('ajuste') + 1, 199, 1).setDataValidation(
     SpreadsheetApp.newDataValidation().requireValueInList(AJUSTES, true).build());
 

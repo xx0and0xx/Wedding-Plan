@@ -126,7 +126,17 @@ Dentro del formulario de una tarea, cada nota tiene el botón **Agendar en Googl
 - La nota queda con un icono de calendario y el texto "Ya agendada en Calendar".
 - Si después cambias la fecha de la nota, el evento no se actualiza solo: edítalo o bórralo en Google Calendar. Si pulsas de nuevo "Agendar", se crea otro evento.
 
-**Una sola vez:** en el Sheets, menú `Tablero` > `Autorizar Google Calendar` y acepta el permiso. Luego publica una nueva versión del Apps Script (Implementar > Administrar implementaciones > Editar > Nueva versión). Sin esos dos pasos, el botón da error de permisos.
+**Una sola vez:** en el Sheets, menú `Tablero` > `Autorizar Calendar y Drive` y acepta los permisos. Luego publica una nueva versión del Apps Script (Implementar > Administrar implementaciones > Editar > Nueva versión). Sin esos dos pasos, el botón da error de permisos.
+
+## Carpeta de fotos (trajes)
+
+Crea una tarjeta nueva y elige en "Dibujo o tipo de tarjeta" la opción **Carpeta de fotos (galería)**. Aparece como una carpeta con una cámara; al hacer clic (cualquier persona que haya entrado) se abre una pantalla estilo cuaderno con las notas importantes y las fotos pegadas con cinta. Se puede ampliar cada foto y pasar con las flechas.
+
+- En "Enlaces de las fotos" pega, uno por línea, el enlace de **una carpeta de Drive** (las fotos nuevas aparecen solas, en unos 5 minutos) y/o el de cada foto. Con la carpeta basta.
+- En Drive, la carpeta o las fotos deben estar compartidas con "Cualquier persona con el enlace" (lector), y la cuenta dueña del Apps Script debe poder verlas.
+- Los enlaces solo los ven los administradores; los caballeros de honor reciben únicamente las fotos.
+- Las notas las edita un administrador desde la propia pantalla de fotos.
+- Primera vez: pega el nuevo `Code.gs`, ejecuta `Tablero` > `Preparar o actualizar hojas` (crea la columna `enlace`), `Tablero` > `Autorizar Calendar y Drive`, y publica una nueva versión.
 
 ## Si no ves los cambios
 

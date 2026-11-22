@@ -81,6 +81,8 @@ var demoTareas = [
   { id: 3, titulo: 'Definir fecha y días del viaje', responsable: 'Novio y padrino', fecha: '', detalle: '3 días, fecha por definir', imagenOriginal: '', imagen: '', escena: 'calendario', estado: 'pendiente', x: 490, y: 34, rotacion: -1.5, conecta_con: '4,5' },
   { id: 4, titulo: 'Comprar tiquetes', responsable: 'Padrino', fecha: '', detalle: 'Esperan la fecha', imagenOriginal: '', imagen: '', escena: 'tiquetes', estado: 'pendiente', x: 255, y: 300, rotacion: -2, conecta_con: '' },
   { id: 5, titulo: 'Reservar habitaciones', responsable: 'Novio', fecha: '', detalle: 'Esperan fecha y lugar', imagenOriginal: '', imagen: '', escena: 'habitacion', estado: 'pendiente', x: 490, y: 306, rotacion: 2.5, conecta_con: '' }
+,
+  { id: 6, titulo: 'Fotos de los trajes', responsable: '', fecha: '', detalle: 'Talla de Juan: revisar mangas\nTodos en azul marino', imagenOriginal: '', imagen: '', escena: 'carpeta', ajuste: 'cubrir', enlace: '', estado: 'pendiente', x: 20, y: 300, rotacion: -3, conecta_con: '1' }
 ];
 function demoPorId(id) {
   for (var i = 0; i < demoTareas.length; i++) if (demoTareas[i].id === Number(id)) return demoTareas[i];
@@ -99,6 +101,12 @@ function demo(accion, d) {
       demoUsuario = demoAdmin ? 'Admin demo' : 'Visita demo';
       r = { rol: demoAdmin ? 'admin' : 'observador', sesion: 'demo', nombre: demoUsuario };
     }
+  } else if (accion === 'fotos') {
+    var cols = ['#6b8fb3', '#b37d6b', '#7fa37a', '#a58fbf', '#c2a35f'];
+    r = { fotos: cols.map(function (col, i) {
+      var u = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="600" height="' + (i % 2 ? 420 : 520) + '"><rect width="600" height="600" fill="' + col + '"/><text x="300" y="' + (i % 2 ? 230 : 280) + '" font-size="60" text-anchor="middle" fill="#fff" font-family="sans-serif">Foto ' + (i + 1) + '</text></svg>');
+      return { id: '', nombre: 'Foto ' + (i + 1), thumb: u, url: u };
+    }), avisos: [] };
   } else if (accion === 'personas') {
     r = [{ nombre: 'Novio', correo: 'novio@demo.com', rol: 'admin' }, { nombre: 'Juan', correo: 'juan@demo.com', rol: 'observador' }, { nombre: 'Pedro', correo: 'pedro@demo.com', rol: 'observador' }];
   } else if (accion === 'agendar') {
@@ -117,7 +125,7 @@ function demo(accion, d) {
       t = { id: demoTareas.reduce(function (m, k) { return Math.max(m, k.id); }, 0) + 1, estado: 'pendiente', x: d.tarea.x, y: d.tarea.y, rotacion: 1 };
       demoTareas.push(t);
     }
-    ['titulo', 'fecha', 'detalle', 'escena', 'conecta_con', 'ajuste'].forEach(function (k) { t[k] = d.tarea[k]; });
+    ['titulo', 'fecha', 'detalle', 'escena', 'conecta_con', 'ajuste', 'enlace'].forEach(function (k) { t[k] = d.tarea[k]; });
     t.imagenOriginal = d.tarea.imagen;
     t.imagen = /^(https:\/\/|img\/)/.test(d.tarea.imagen) ? d.tarea.imagen : '';
     r = JSON.parse(JSON.stringify(t));
@@ -419,6 +427,7 @@ function arrastrarNota(e, n, t, c) {
 }
 
 function crearCard(t) {
+  if (t.escena === 'carpeta') return crearCarpeta(t);
   var c = el('div', 'c' + (t.estado === 'completado' ? ' done' : '') + (S.editor ? ' edit' : ''));
   c.dataset.id = t.id;
   c.style.left = t.x + 'px';
@@ -516,8 +525,9 @@ function alternar(t) {
 }
 
 function crearPlano() {
-  var hechas = S.tareas.filter(function (t) { return t.estado === 'completado'; }).length;
-  var total = S.tareas.length;
+  var pasos = S.tareas.filter(function (t) { return t.escena !== 'carpeta'; });
+  var hechas = pasos.filter(function (t) { return t.estado === 'completado'; }).length;
+  var total = pasos.length;
   var p = el('div', 'bp' + (S.editor ? ' edit' : ''));
   p.style.left = S.plano.x + 'px';
   p.style.top = S.plano.y + 'px';
@@ -548,7 +558,7 @@ function dibujarHilos() {
       if (!s) return;
       var q = porId(s);
       if (!q || q.id === t.id) return;
-      var x1 = t.x + 80, y1 = t.y, x2 = q.x + 80, y2 = q.y;
+      var x1 = t.x + (t.escena === 'carpeta' ? 75 : 80), y1 = t.y, x2 = q.x + (q.escena === 'carpeta' ? 75 : 80), y2 = q.y;
       var path = 'M' + x1 + ' ' + y1 + ' Q' + ((x1 + x2) / 2) + ' ' + (Math.max(y1, y2) + 90) + ' ' + x2 + ' ' + y2;
       var gris = t.estado === 'completado' && q.estado === 'completado';
       g += '<path d="' + path + '" transform="translate(2 4)" stroke="rgba(0,0,0,.3)" stroke-width="3" fill="none"/>' +
@@ -737,6 +747,143 @@ function juntarNotas() {
   return lineas.join('\n');
 }
 
+/* ---------- Tarjeta de carpeta de fotos ---------- */
+function crearCarpeta(t) {
+  var c = el('div', 'c carpeta' + (S.editor ? ' edit' : ''));
+  c.dataset.id = t.id;
+  c.style.left = t.x + 'px';
+  c.style.top = t.y + 'px';
+  c.style.transform = 'rotate(' + t.rotacion + 'deg)';
+  c.setAttribute('role', 'button');
+  c.setAttribute('tabindex', '0');
+  c.setAttribute('aria-label', 'Abrir las fotos: ' + t.titulo);
+  c.appendChild(el('span', 'pn'));
+  var ph = el('div', 'ph');
+  ph.innerHTML = ESCENAS.carpeta;
+  c.appendChild(ph);
+  c.appendChild(el('p', 't', t.titulo));
+  c.appendChild(el('p', 'vf', 'Ver fotos'));
+  if (S.editor) {
+    var b = el('button', 'eb');
+    b.type = 'button';
+    b.setAttribute('aria-label', 'Editar ' + t.titulo);
+    b.innerHTML = LAPIZ;
+    b.addEventListener('pointerdown', function (ev) { ev.stopPropagation(); });
+    b.addEventListener('click', function (ev) { ev.stopPropagation(); abrirDialogo(t); });
+    c.appendChild(b);
+    activarArrastre(c, t, function () { abrirGaleria(t); }, function () {
+      api('mover', { id: t.id, x: t.x, y: t.y }).catch(fallo);
+    });
+  } else {
+    c.addEventListener('click', function () { abrirGaleria(t); });
+    c.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirGaleria(t); }
+    });
+  }
+  return c;
+}
+
+var galFotos = [], galIdx = 0, galTarea = null, galDisparador = null;
+
+function abrirGaleria(t) {
+  galTarea = t;
+  galDisparador = document.activeElement;
+  $('gal_t').textContent = t.titulo;
+  var zona = $('gal_n');
+  zona.innerHTML = '';
+  var texto = String(t.detalle || '').split('\n').map(function (l) { return l.replace(RE_MARCA, '').trim(); }).filter(Boolean).join('\n');
+  if (S.editor) {
+    var ta = el('textarea');
+    ta.maxLength = 1500;
+    ta.rows = 4;
+    ta.value = texto;
+    ta.setAttribute('aria-label', 'Notas importantes');
+    ta.placeholder = 'Escribe aquí lo importante';
+    var gb = el('button', 'sec gb', 'Guardar notas');
+    gb.type = 'button';
+    gb.onclick = function () {
+      var det = ta.value.replace(/\|/g, ' ').split('\n').map(function (l) { return l.trim(); }).filter(Boolean).join('\n');
+      api('notas', { id: t.id, detalle: det }).then(function () { t.detalle = det; toast('Notas guardadas.'); }).catch(fallo);
+    };
+    zona.appendChild(ta);
+    zona.appendChild(gb);
+  } else {
+    zona.appendChild(el('div', 'gtx', texto || 'Sin notas por ahora.'));
+  }
+  var cont = $('gal_f');
+  cont.innerHTML = '';
+  cont.appendChild(el('p', 'gvacio', 'Buscando las fotos...'));
+  $('gal').hidden = false;
+  document.body.style.overflow = 'hidden';
+  $('gal_x').focus();
+  api('fotos', { id: t.id }).then(function (r) {
+    if (galTarea !== t) return;
+    galFotos = (r && r.fotos) || [];
+    cont.innerHTML = '';
+    if (!galFotos.length) cont.appendChild(el('p', 'gvacio', 'Todavía no hay fotos.'));
+    galFotos.forEach(function (f, i) {
+      var b = el('button', 'ft');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'Ampliar la foto ' + (i + 1) + (f.nombre ? ': ' + f.nombre : ''));
+      var im = new Image();
+      im.alt = '';
+      im.loading = 'lazy';
+      im.referrerPolicy = 'no-referrer';
+      im.src = f.thumb;
+      b.appendChild(im);
+      b.onclick = function () { abrirFoto(i); };
+      cont.appendChild(b);
+    });
+    ((r && r.avisos) || []).forEach(function (a) { cont.parentNode.appendChild(el('p', 'gav', a)); });
+  }).catch(function (e) {
+    cont.innerHTML = '';
+    cont.appendChild(el('p', 'gvacio', 'No se pudieron cargar las fotos: ' + e.message));
+  });
+}
+
+function cerrarGaleria() {
+  $('gal').hidden = true;
+  $('lb').hidden = true;
+  document.body.style.overflow = '';
+  Array.prototype.forEach.call(document.querySelectorAll('#gal .gav'), function (p) { p.remove(); });
+  galTarea = null;
+  if (galDisparador && galDisparador.focus) galDisparador.focus();
+}
+
+function abrirFoto(i) {
+  if (!galFotos.length) return;
+  galIdx = (i + galFotos.length) % galFotos.length;
+  $('lb_i').src = galFotos[galIdx].url;
+  $('lb_c').textContent = (galIdx + 1) + ' de ' + galFotos.length + (galFotos[galIdx].nombre ? ' · ' + galFotos[galIdx].nombre : '');
+  $('lb').hidden = false;
+  $('lb_x').focus();
+}
+
+$('gal_x').onclick = cerrarGaleria;
+$('lb_x').onclick = function () { $('lb').hidden = true; $('gal_x').focus(); };
+$('lb_p').onclick = function () { abrirFoto(galIdx - 1); };
+$('lb_n').onclick = function () { abrirFoto(galIdx + 1); };
+document.addEventListener('keydown', function (ev) {
+  if (!$('lb').hidden) {
+    if (ev.key === 'ArrowLeft') abrirFoto(galIdx - 1);
+    else if (ev.key === 'ArrowRight') abrirFoto(galIdx + 1);
+    else if (ev.key === 'Escape') { ev.stopPropagation(); $('lb').hidden = true; $('gal_x').focus(); }
+  } else if (!$('gal').hidden && ev.key === 'Escape') cerrarGaleria();
+});
+
+function esCarpeta() { return $('f_escena').value === 'carpeta'; }
+function verTipo() {
+  var k = esCarpeta();
+  $('sec_normal').hidden = k;
+  $('sec_carpeta').hidden = !k;
+  $('f_notas').parentNode.querySelectorAll('.fh2').forEach(function (e) { e.hidden = k; });
+  $('f_notas').hidden = k;
+  Array.prototype.forEach.call($('frm').querySelectorAll('.lb'), function (p) { if (/Notas/.test(p.textContent)) p.hidden = k; });
+  $('f_imagen').parentNode.hidden = k;
+  $('f_ajuste').parentNode.hidden = k;
+}
+$('f_escena').onchange = verTipo;
+
 function abrirDialogo(t) {
   editando = t;
   confirmarBorrado = false;
@@ -758,6 +905,9 @@ function abrirDialogo(t) {
   $('f_imagen').value = t ? t.imagenOriginal : '';
   $('f_escena').value = t ? t.escena : 'generico';
   $('f_conecta').value = t ? t.conecta_con : '';
+  $('f_enlace').value = t && t.enlace ? t.enlace : '';
+  $('f_gnotas').value = t && t.escena === 'carpeta' ? String(t.detalle || '').split('\n').map(function (l) { return l.replace(RE_MARCA, ''); }).join('\n') : '';
+  verTipo();
   $('b_del').style.display = t ? '' : 'none';
   $('dlg').showModal();
 }
@@ -801,7 +951,8 @@ $('frm').onsubmit = function (ev) {
     id: editando ? editando.id : 0,
     titulo: titulo,
     fecha: $('f_fecha').value ? $('f_fecha').value + ($('f_hora').value ? ' ' + $('f_hora').value : '') : fechaVieja,
-    detalle: juntarNotas(),
+    detalle: esCarpeta() ? $('f_gnotas').value.replace(/\|/g, ' ').split('\n').map(function (l) { return l.trim(); }).filter(Boolean).join('\n') : juntarNotas(),
+    enlace: esCarpeta() ? $('f_enlace').value : '',
     ajuste: $('f_ajuste').value,
     imagen: $('f_imagen').value,
     escena: $('f_escena').value,

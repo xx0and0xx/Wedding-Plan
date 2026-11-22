@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Wedding Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=9">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Special+Elite&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=10">
 </head>
 <body>
 <header>
@@ -71,6 +71,7 @@
     <h2 id="dtitulo">Nueva tarea</h2>
     <label>Título<input id="f_titulo" maxlength="120"></label>
     <p class="err" id="err"></p>
+    <div id="sec_normal">
     <p class="lb">Fecha o cita</p>
     <div class="fh">
       <input type="date" id="f_fecha" aria-label="Fecha">
@@ -90,7 +91,17 @@
         <option value="completa">Mostrar la imagen completa</option>
       </select>
     </label>
-    <label>Dibujo si no hay imagen<select id="f_escena"></select></label>
+    </div>
+    <div id="sec_carpeta" hidden>
+      <label>Enlaces de las fotos (uno por línea)
+        <textarea id="f_enlace" rows="4" maxlength="1500" placeholder="Enlace de la carpeta de Drive y/o de cada foto"></textarea>
+      </label>
+      <p class="hint ok">Pega el enlace de la carpeta (las fotos nuevas aparecen solas) o el de cada foto. En Drive deben estar compartidas con "Cualquier persona con el enlace".</p>
+      <label>Notas importantes (se ven en la pantalla de fotos)
+        <textarea id="f_gnotas" rows="4" maxlength="1500"></textarea>
+      </label>
+    </div>
+    <label>Dibujo o tipo de tarjeta (elige "Carpeta de fotos" para una galería)<select id="f_escena"></select></label>
     <label>Conecta con (números de tarjeta, separados por coma)<input id="f_conecta" maxlength="60" placeholder="3,4"></label>
     <div class="row">
       <button type="button" class="danger" id="b_del">Eliminar</button>
@@ -101,8 +112,27 @@
   </form>
 </dialog>
 
+<div id="gal" role="dialog" aria-modal="true" aria-labelledby="gal_t" hidden>
+  <button type="button" id="gal_x" class="gx" aria-label="Cerrar las fotos">&times;</button>
+  <div class="gp">
+    <h2 id="gal_t" class="gt"></h2>
+    <p id="gal_hn" class="gh">Notas importantes</p>
+    <div id="gal_n" class="gn"></div>
+    <p class="gh">Fotos</p>
+    <div id="gal_f" class="gf"></div>
+  </div>
+</div>
+
+<div id="lb" role="dialog" aria-modal="true" aria-label="Foto ampliada" hidden>
+  <button type="button" id="lb_x" class="lbb lbx" aria-label="Cerrar la foto">&times;</button>
+  <button type="button" id="lb_p" class="lbb lbp" aria-label="Foto anterior">&#8249;</button>
+  <img id="lb_i" alt="">
+  <button type="button" id="lb_n" class="lbb lbn" aria-label="Foto siguiente">&#8250;</button>
+  <p id="lb_c"></p>
+</div>
+
 <script src="js/config.js"></script>
-<script src="js/escenas.js?v=9"></script>
-<script src="js/app.js?v=9"></script>
+<script src="js/escenas.js?v=10"></script>
+<script src="js/app.js?v=10"></script>
 </body>
 </html>
