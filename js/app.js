@@ -139,6 +139,7 @@ function cargar() {
   return api('leer').then(function (d) {
     S.tareas = d.tareas; S.editor = d.editor; S.titulo = d.titulo; S.fechaBoda = d.fechaBoda; S.plano = d.plano || { x: 20, y: 320 };
     S.usuario = d.usuario || '';
+    if (!S.editor) aplicarPosicionesLocales();
     if (SESION && !d.usuario && !DEMO) {
       SESION = '';
       try { localStorage.removeItem('tablero_sesion'); } catch (e) {}
@@ -426,6 +427,20 @@ function arrastrarNota(e, n, t, c) {
   e.addEventListener('pointercancel', function () { d = null; dragNota = null; e.classList.remove('arr'); });
 }
 
+/* Los observadores pueden acomodar las tarjetas a su gusto; eso se guarda solo en su navegador. */
+function leerPosLocales() {
+  try { return JSON.parse(localStorage.getItem('tablero_pos') || '{}') || {}; } catch (e) { return {}; }
+}
+function aplicarPosicionesLocales() {
+  var p = leerPosLocales();
+  S.tareas.forEach(function (t) { if (p[t.id]) { t.x = p[t.id].x; t.y = p[t.id].y; } });
+}
+function guardarPosLocal(t) {
+  var p = leerPosLocales();
+  p[t.id] = { x: t.x, y: t.y };
+  try { localStorage.setItem('tablero_pos', JSON.stringify(p)); } catch (e) {}
+}
+
 function crearCard(t) {
   if (t.escena === 'carpeta') return crearCarpeta(t);
   var c = el('div', 'c' + (t.estado === 'completado' ? ' done' : '') + (S.editor ? ' edit' : ''));
@@ -470,6 +485,8 @@ function crearCard(t) {
     activarArrastre(c, t, function () { alternar(t); }, function () {
       api('mover', { id: t.id, x: t.x, y: t.y }).catch(fallo);
     });
+  } else {
+    activarArrastre(c, t, null, function () { guardarPosLocal(t); });
   }
   return c;
 }
@@ -775,10 +792,7 @@ function crearCarpeta(t) {
       api('mover', { id: t.id, x: t.x, y: t.y }).catch(fallo);
     });
   } else {
-    c.addEventListener('click', function () { abrirGaleria(t); });
-    c.addEventListener('keydown', function (ev) {
-      if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirGaleria(t); }
-    });
+    activarArrastre(c, t, function () { abrirGaleria(t); }, function () { guardarPosLocal(t); });
   }
   return c;
 }
@@ -810,87 +824,131 @@ function juntarGal(g) {
   return l.join('\n');
 }
 
+var galEstado = null, galPag = 0;
+
+function paginasPorVista() { return window.innerWidth >= 900 ? 2 : 1; }
+
 function abrirGaleria(t) {
   galTarea = t;
   galDisparador = document.activeElement;
+  galFotos = [];
+  galPag = 0;
+  galEstado = leerGal(t.detalle);
   $('gal_t').textContent = t.titulo;
-  var zona = $('gal_n');
-  zona.innerHTML = '';
-  var estado = leerGal(t.detalle);
-  var texto = estado.gen.join('\n');
-  function guardarGal(msg) {
-    var det = juntarGal(estado);
-    api('notas', { id: t.id, detalle: det }).then(function () { t.detalle = det; if (msg) toast(msg); }).catch(fallo);
-  }
-  if (S.editor) {
-    var ta = el('textarea');
-    ta.maxLength = 1500;
-    ta.rows = 4;
-    ta.value = texto;
-    ta.setAttribute('aria-label', 'Notas importantes');
-    ta.placeholder = 'Escribe aquí lo importante';
-    var gb = el('button', 'sec gb', 'Guardar notas');
-    gb.type = 'button';
-    gb.onclick = function () {
-      estado.gen = ta.value.replace(/\|/g, ' ').split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
-      guardarGal('Notas guardadas.');
-    };
-    zona.appendChild(ta);
-    zona.appendChild(gb);
-  } else {
-    zona.appendChild(el('div', 'gtx', texto || 'Sin notas por ahora.'));
-  }
-  var cont = $('gal_f');
-  cont.innerHTML = '';
-  cont.appendChild(el('p', 'gvacio', 'Buscando las fotos...'));
+  armarNotasGen();
+  $('gal_f').innerHTML = '';
+  $('gal_f').appendChild(el('p', 'gvacio', 'Buscando las fotos...'));
+  $('gal_nav').hidden = true;
   $('gal').hidden = false;
   document.body.style.overflow = 'hidden';
   $('gal_x').focus();
   api('fotos', { id: t.id }).then(function (r) {
     if (galTarea !== t) return;
     galFotos = (r && r.fotos) || [];
-    cont.innerHTML = '';
-    if (!galFotos.length) cont.appendChild(el('p', 'gvacio', 'Todavía no hay fotos.'));
-    galFotos.forEach(function (f, i) {
-      var fila = el('div', 'fr');
-      var b = el('button', 'ft');
-      b.type = 'button';
-      b.setAttribute('aria-label', 'Ampliar la foto ' + (i + 1) + (f.nombre ? ': ' + f.nombre : ''));
-      var im = new Image();
-      im.alt = '';
-      im.loading = 'lazy';
-      im.referrerPolicy = 'no-referrer';
-      im.src = f.thumb;
-      b.appendChild(im);
-      b.onclick = function () { abrirFoto(i); };
-      fila.appendChild(b);
-      var k = claveFoto(f), nt;
-      if (S.editor) {
-        nt = el('textarea', 'fn');
-        nt.maxLength = 300;
-        nt.value = estado.fot[k] || '';
-        nt.placeholder = 'Notas de esta foto';
-        nt.setAttribute('aria-label', 'Notas de la foto ' + (i + 1));
-        nt.onchange = function () { estado.fot[k] = nt.value; guardarGal('Nota guardada.'); };
-      } else {
-        nt = el('div', 'fn fnl', estado.fot[k] || '');
-        if (!estado.fot[k]) nt.hidden = true;
-      }
-      fila.appendChild(nt);
-      cont.appendChild(fila);
-    });
-    ((r && r.avisos) || []).forEach(function (a) { cont.parentNode.appendChild(el('p', 'gav', a)); });
+    galAvisos = (r && r.avisos) || [];
+    dibujarLibro();
   }).catch(function (e) {
-    cont.innerHTML = '';
-    cont.appendChild(el('p', 'gvacio', 'No se pudieron cargar las fotos: ' + e.message));
+    $('gal_f').innerHTML = '';
+    $('gal_f').appendChild(el('p', 'gvacio', 'No se pudieron cargar las fotos: ' + e.message));
   });
+}
+
+var galAvisos = [];
+
+function guardarGal(msg) {
+  var t = galTarea;
+  if (!t) return;
+  var det = juntarGal(galEstado);
+  api('notas', { id: t.id, detalle: det }).then(function () { t.detalle = det; if (msg) toast(msg); }).catch(fallo);
+}
+
+function armarNotasGen() {
+  var zona = $('gal_n');
+  zona.innerHTML = '';
+  var texto = galEstado.gen.join('\n');
+  if (S.editor) {
+    var ta = el('textarea');
+    ta.maxLength = 1500;
+    ta.rows = 2;
+    ta.value = texto;
+    ta.setAttribute('aria-label', 'Notas importantes');
+    ta.placeholder = 'Escribe aquí lo importante';
+    ta.onchange = function () {
+      galEstado.gen = ta.value.replace(/\|/g, ' ').split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+      guardarGal('Notas guardadas.');
+    };
+    zona.appendChild(ta);
+  } else {
+    zona.appendChild(el('div', 'gtx', texto || 'Sin notas por ahora.'));
+  }
+}
+
+function tarjetaFoto(f, i) {
+  var fig = el('div', 'fr');
+  var b = el('button', 'ft');
+  b.type = 'button';
+  b.setAttribute('aria-label', 'Ampliar la foto ' + (i + 1) + (f.nombre ? ': ' + f.nombre : ''));
+  var im = new Image();
+  im.alt = '';
+  im.referrerPolicy = 'no-referrer';
+  im.src = f.thumb;
+  b.appendChild(im);
+  b.onclick = function () { abrirFoto(i); };
+  fig.appendChild(b);
+  var k = claveFoto(f), nt;
+  if (S.editor) {
+    nt = el('textarea', 'fn');
+    nt.maxLength = 300;
+    nt.rows = 2;
+    nt.value = galEstado.fot[k] || '';
+    nt.placeholder = 'Notas de esta foto';
+    nt.setAttribute('aria-label', 'Notas de la foto ' + (i + 1));
+    nt.onchange = function () { galEstado.fot[k] = nt.value; guardarGal('Nota guardada.'); };
+  } else {
+    nt = el('div', 'fn fnl', galEstado.fot[k] || '');
+    if (!galEstado.fot[k]) nt.hidden = true;
+  }
+  fig.appendChild(nt);
+  return fig;
+}
+
+/* Cada página lleva 2 fotos; en pantalla ancha se ven 2 páginas a la vez (4 fotos), en el celular una. */
+function dibujarLibro() {
+  var cont = $('gal_f');
+  cont.innerHTML = '';
+  if (!galFotos.length) {
+    cont.appendChild(el('p', 'gvacio', 'Todavía no hay fotos.'));
+    $('gal_nav').hidden = true;
+    return;
+  }
+  var porVista = paginasPorVista();
+  var total = Math.ceil(galFotos.length / 2);
+  galPag = Math.max(0, Math.min(galPag - (galPag % porVista), total - 1));
+  for (var p = galPag; p < Math.min(total, galPag + porVista); p++) {
+    var hoja = el('div', 'pg' + (p % 2 ? ' der' : ' izq'));
+    for (var k = p * 2; k < Math.min(galFotos.length, p * 2 + 2); k++) hoja.appendChild(tarjetaFoto(galFotos[k], k));
+    hoja.appendChild(el('span', 'pnum', String(p + 1)));
+    cont.appendChild(hoja);
+  }
+  galAvisos.forEach(function (a) { cont.appendChild(el('p', 'gav', a)); });
+  var vistas = Math.ceil(total / porVista);
+  var actual = Math.floor(galPag / porVista) + 1;
+  $('gal_nav').hidden = vistas <= 1;
+  $('gal_pos').textContent = (porVista === 2 ? 'Hojas ' : 'Hoja ') + (galPag + 1) + (porVista === 2 && galPag + 1 < total ? '–' + (galPag + 2) : '') + ' de ' + total;
+  $('gal_ant').disabled = actual <= 1;
+  $('gal_sig').disabled = actual >= vistas;
+}
+
+function pasarHoja(d) {
+  galPag += d * paginasPorVista();
+  dibujarLibro();
+  $('gal').scrollTop = 0;
 }
 
 function cerrarGaleria() {
   $('gal').hidden = true;
   $('lb').hidden = true;
   document.body.style.overflow = '';
-  Array.prototype.forEach.call(document.querySelectorAll('#gal .gav'), function (p) { p.remove(); });
   galTarea = null;
   if (galDisparador && galDisparador.focus) galDisparador.focus();
 }
@@ -905,6 +963,9 @@ function abrirFoto(i) {
 }
 
 $('gal_x').onclick = cerrarGaleria;
+$('gal_ant').onclick = function () { pasarHoja(-1); };
+$('gal_sig').onclick = function () { pasarHoja(1); };
+window.addEventListener('resize', function () { if (!$('gal').hidden && galFotos.length) dibujarLibro(); });
 $('lb_x').onclick = function () { $('lb').hidden = true; $('gal_x').focus(); };
 $('lb_p').onclick = function () { abrirFoto(galIdx - 1); };
 $('lb_n').onclick = function () { abrirFoto(galIdx + 1); };
@@ -913,7 +974,12 @@ document.addEventListener('keydown', function (ev) {
     if (ev.key === 'ArrowLeft') abrirFoto(galIdx - 1);
     else if (ev.key === 'ArrowRight') abrirFoto(galIdx + 1);
     else if (ev.key === 'Escape') { ev.stopPropagation(); $('lb').hidden = true; $('gal_x').focus(); }
-  } else if (!$('gal').hidden && ev.key === 'Escape') cerrarGaleria();
+  } else if (!$('gal').hidden) {
+    var enCampo = /TEXTAREA|INPUT/.test((document.activeElement || {}).tagName || '');
+    if (ev.key === 'Escape') cerrarGaleria();
+    else if (!enCampo && ev.key === 'ArrowRight' && !$('gal_sig').disabled) pasarHoja(1);
+    else if (!enCampo && ev.key === 'ArrowLeft' && !$('gal_ant').disabled) pasarHoja(-1);
+  }
 });
 
 function esCarpeta() { return $('f_escena').value === 'carpeta'; }

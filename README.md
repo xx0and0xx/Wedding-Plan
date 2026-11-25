@@ -128,9 +128,13 @@ Dentro del formulario de una tarea, cada nota tiene el botón **Agendar en Googl
 
 **Una sola vez:** en el Sheets, menú `Tablero` > `Autorizar Calendar y Drive` y acepta los permisos. Luego publica una nueva versión del Apps Script (Implementar > Administrar implementaciones > Editar > Nueva versión). Sin esos dos pasos, el botón da error de permisos.
 
+## Observadores
+
+Los caballeros de honor pueden arrastrar las tarjetas para verlas a su gusto, pero no editarlas. Ese orden se guarda solo en su navegador y no cambia el tablero de los novios.
+
 ## Carpeta de fotos (trajes)
 
-Crea una tarjeta nueva y elige en "Dibujo o tipo de tarjeta" la opción **Carpeta de fotos (galería)**. Aparece como una carpeta con una cámara; al hacer clic (cualquier persona que haya entrado) se abre una pantalla estilo cuaderno con las notas importantes y las fotos pegadas con cinta. Se puede ampliar cada foto y pasar con las flechas.
+Crea una tarjeta nueva y elige en "Dibujo o tipo de tarjeta" la opción **Carpeta de fotos (galería)**. Aparece como una carpeta con una cámara; al hacer clic (cualquier persona que haya entrado) se abre una pantalla estilo cuaderno con las notas importantes y las fotos pegadas con cinta. Se puede ampliar cada foto y pasar con las flechas. En computador se ve como un cuaderno abierto de dos hojas con dos fotos por hoja (cuatro por vista); si hay más, los botones Anterior y Siguiente (o las flechas del teclado) pasan a las siguientes hojas. En el celular se ve una hoja a la vez. Cada foto tiene su espacio de notas al lado.
 
 - En "Enlaces de las fotos" pega, uno por línea, el enlace de **una carpeta de Drive** (las fotos nuevas aparecen solas, en unos 5 minutos) y/o el de cada foto. Con la carpeta basta.
 - En Drive, la carpeta o las fotos deben estar compartidas con "Cualquier persona con el enlace" (lector), y la cuenta dueña del Apps Script debe poder verlas.

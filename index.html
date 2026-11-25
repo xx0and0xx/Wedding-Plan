@@ -6,7 +6,7 @@
 <title>Wedding Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Special+Elite&family=Inter:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=11">
+<link rel="stylesheet" href="css/style.css?v=12">
 </head>
 <body>
 <header>
@@ -114,12 +114,18 @@
 
 <div id="gal" role="dialog" aria-modal="true" aria-labelledby="gal_t" hidden>
   <button type="button" id="gal_x" class="gx" aria-label="Cerrar las fotos">&times;</button>
-  <div class="gp">
-    <h2 id="gal_t" class="gt"></h2>
-    <p id="gal_hn" class="gh">Notas importantes</p>
-    <div id="gal_n" class="gn"></div>
-    <p class="gh">Fotos</p>
+  <div class="libro">
+    <div class="enc">
+      <h2 id="gal_t" class="gt"></h2>
+      <p class="gh">Notas importantes</p>
+      <div id="gal_n" class="gn"></div>
+    </div>
     <div id="gal_f" class="gf"></div>
+    <div id="gal_nav" class="gnav" hidden>
+      <button type="button" id="gal_ant" class="gb2" aria-label="Hojas anteriores">&#8249; Anterior</button>
+      <span id="gal_pos"></span>
+      <button type="button" id="gal_sig" class="gb2" aria-label="Hojas siguientes">Siguiente &#8250;</button>
+    </div>
   </div>
 </div>
 
@@ -132,7 +138,7 @@
 </div>
 
 <script src="js/config.js"></script>
-<script src="js/escenas.js?v=11"></script>
-<script src="js/app.js?v=11"></script>
+<script src="js/escenas.js?v=12"></script>
+<script src="js/app.js?v=12"></script>
 </body>
 </html>
